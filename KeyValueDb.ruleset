@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="Rules for StyleCop.Analyzers" Description="Code analysis rules for IndexingManager" ToolsVersion="15.0">
+    <Rules AnalyzerId="StyleCop.Analyzers" RuleNamespace="StyleCop.Analyzers">
+        <Rule Id="SA0001" Action="None"
+              Description="All diagnostics of XML documentation comments has been disabled due to the current project configuration."/>
+        <Rule Id="SA1027" Action="None" Description="The C# code contains a tab character."/>
+        <Rule Id="SA1101" Action="None"
+              Description="A call to an instance member of the local class or a base class is not prefixed with ‘this.’, within a C# code file."/>
+        <Rule Id="SA1117" Action="None"
+              Description="The parameters to a C# method or indexer call or declaration are not all on the same line or each on a separate line."/>
+        <Rule Id="SA1121" Action="None"
+              Description="The code uses one of the basic C# types, but does not use the built-in alias for the type."/>
+        <Rule Id="SA1127" Action="None"
+              Description="A generic constraint on a type or method declaration is on the same line as the declaration, within a C# code file."/>
+        <Rule Id="SA1200" Action="None" Description="A C# using directive is placed outside of a namespace element."/>
+        <Rule Id="SA1201" Action="None"
+              Description="An element within a C# code file is out of order in relation to the other elements in the code."/>
+        <Rule Id="SA1202" Action="None"
+              Description="An element within a C# code file is out of order within regard to access level, in relation to other elements in the code."/>
+        <Rule Id="SA1204" Action="None"
+              Description="A static element is positioned beneath an instance element of the same type."/>
+        <Rule Id="SA1309" Action="None" Description="Field Names Must Not Begin With Underscore"/>
+        <Rule Id="SA1633" Action="None" Description="A C# code file is missing a standard file header."/>
+        <Rule Id="SA1652" Action="None"
+              Description="All diagnostics of XML documentation comments has been disabled due to the current project configuration."/>
+        <Rule Id="SA1118" Action="None"/>
+        <Rule Id="SA1013" Action="None"/>
+        <Rule Id="SA1600" Action="None"/>
+        <Rule Id="SA1512" Action="None"/>
+        <Rule Id="SA1516" Action="None" Description="Elements should be separated by blank line"/>
+        <Rule Id="SA1000" Action="None"/>
+    </Rules>
+    <Rules AnalyzerId="Microsoft.CodeAnalysis.NetAnalyzers" RuleNamespace="Microsoft.CodeAnalysis.NetAnalyzers">
+        <Rule Id="CA1000" Action="None"/>
+        <Rule Id="CA1014" Action="None"/>
+        <Rule Id="CA1028" Action="None"/>
+        <Rule Id="CA1031" Action="None"/>
+        <Rule Id="CA1034" Action="None"/>
+        <Rule Id="CA1051" Action="None"/>
+        <Rule Id="CA1062" Action="None"/>
+        <Rule Id="CA1303" Action="None" Description="Do not pass literals as localized parameters."/>
+        <Rule Id="CA1707" Action="None"/>
+        <Rule Id="CA1710" Action="None" Description="Rename PackageCatalog.Api.Objects.Scope to end in 'Collection'"/>
+        <Rule Id="CA1711" Action="None"/>
+        <Rule Id="CA1716" Action="None"/>
+        <Rule Id="CA1720" Action="None"/>
+        <Rule Id="CA1724" Action="None"/>
+        <Rule Id="CA1805" Action="None"/>
+        <Rule Id="CA1812" Action="None"/>
+        <Rule Id="CA1815" Action="None"/>
+        <Rule Id="CA1848" Action="None"
+              Description="For improved performance, use the LoggerMessage delegates instead of calling 'LoggerExtensions.LogInformation(ILogger, string, params object[])'"/>
+        <Rule Id="CA2007" Action="None" Description="Do not directly await a Task without calling ConfigureAwait."/>
+        <Rule Id="CA2234" Action="None"/>
+        <Rule Id="CA2237" Action="None" Description="Mark ISerializable types with SerializableAttribute"/>
+        <Rule Id="CA5394" Action="None"
+              Description="Random is an insecure random number generator. Use cryptographically secure random number generators when randomness is required for security."/>
+    </Rules>
+</RuleSet>

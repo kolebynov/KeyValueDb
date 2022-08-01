@@ -3,168 +3,121 @@ using KeyValueDb.Common.Extensions;
 
 namespace KeyValueDb.Paging;
 
-public sealed class PageManager
+public sealed class PageManager : IDisposable
 {
-	private const int MaxPageCount = int.MaxValue;
-
 	private readonly FileStream _dbFileStream;
 	private readonly long _headerOffset;
 	private readonly long _firstPageOffset;
-	private readonly Dictionary<int, Page> _cachedPages = new();
-	private PagesHeader _header;
-	private Page _firstPageWithFreeBlocks;
+	private readonly Dictionary<uint, Page> _cachedPages = new();
+	private PageManagerHeader _header;
 
 	public PageManager(FileStream dbFileStream, long offset)
 	{
 		_dbFileStream = dbFileStream ?? throw new ArgumentNullException(nameof(dbFileStream));
 		_headerOffset = offset;
-		_firstPageOffset = offset + Marshal.SizeOf<PagesHeader>();
+		_firstPageOffset = offset + Marshal.SizeOf<PageManagerHeader>();
 
-		if (_dbFileStream.Length <= offset)
+		if (_dbFileStream.Length <= _headerOffset)
 		{
-			_header = default;
+			_header = new PageManagerHeader();
+			WriteHeader();
 		}
 		else
 		{
-			_dbFileStream.ReadStructure(offset, out _header);
+			_dbFileStream.ReadStructure(_headerOffset, ref _header);
 		}
-
-		_firstPageWithFreeBlocks = ReadPage(_header.FirstPageWithFreeBlocks);
 	}
 
-	public PageAccessor GetPageWithFreeBlocks(int startIndex)
+	public PageAccessor AllocatePage()
 	{
-		return startIndex <= _firstPageWithFreeBlocks.Index
-			? new PageAccessor(_firstPageWithFreeBlocks, this)
-			: GetPage(FindPageWithFreeBlocks(startIndex));
+		var pageIndex = _header.FreePagesStack.Count > 0
+			? _header.FreePagesStack.Pop()
+			: (uint)((_dbFileStream.Length - _firstPageOffset) / Constants.PageSize);
+
+		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
 	}
 
-	public PageAccessor GetPage(int index)
+	public PageAccessor GetPage(uint pageIndex)
 	{
-		return new PageAccessor(GetPageInternal(index), this);
+		CheckPageIndex(pageIndex);
+
+		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
 	}
 
-	private Page GetPageInternal(int index)
+	public void FreePage(uint pageIndex)
 	{
-		CheckPageIndex(index);
+		CheckPageIndex(pageIndex);
 
-		if (index == _firstPageWithFreeBlocks.Index)
+		var pageAddress = GetPageAddress(pageIndex);
+		var isLastPage = _dbFileStream.Length == pageAddress + Constants.PageSize;
+		if (isLastPage)
 		{
-			return _firstPageWithFreeBlocks;
+			_dbFileStream.SetLength(pageAddress);
+			return;
 		}
 
-		if (_cachedPages.TryGetValue(index, out var page))
-		{
-			return page;
-		}
-
-		return _cachedPages[index] = ReadPage(index);
+		_header.FreePagesStack.Push(pageIndex);
+		WriteHeader();
 	}
 
-	private Page ReadPage(int index)
+	public void Dispose()
 	{
-		var pageAddress = GetPageAddress(index);
-
-		PageData pageData;
-		if (_dbFileStream.Length <= pageAddress)
-		{
-			pageData = default;
-		}
-		else
-		{
-			_dbFileStream.ReadStructure(pageAddress, out pageData);
-		}
-
-		return new Page(ref pageData, index);
+		_dbFileStream.Dispose();
 	}
 
-	private void CommitPage(Page page)
+	internal void CommitPage(Page page, uint pageIndex)
 	{
 		if (!page.HasChanges)
 		{
 			return;
 		}
 
-		_dbFileStream.WriteStructure(GetPageAddress(page.Index), ref page.PageData);
-		page.ResetChanges();
-
-		if (page.Index == _header.FirstPageWithFreeBlocks && !page.HasFreeBlocks)
-		{
-			UpdateFirstPageWithFreeBlocks(FindPageWithFreeBlocks(page.Index + 1));
-		}
-		else if (page.HasFreeBlocks && page.Index < _header.FirstPageWithFreeBlocks)
-		{
-			UpdateFirstPageWithFreeBlocks(page.Index);
-		}
+		_dbFileStream.WriteStructure(GetPageAddress(pageIndex), ref page.GetPageData());
+		page.HasChanges = false;
 	}
 
-	private int FindPageWithFreeBlocks(int start)
+	private void CheckPageIndex(uint pageIndex)
 	{
-		for (var pageIndex = start; ; pageIndex++)
+		if (pageIndex == Constants.InvalidPageIndex)
 		{
-			if (_cachedPages.TryGetValue(pageIndex, out var cachedPage) && cachedPage.HasFreeBlocks)
-			{
-				return pageIndex;
-			}
+			throw new ArgumentException($"Invalid page index {pageIndex}", nameof(pageIndex));
+		}
 
-			var pageAddress = GetPageAddress(pageIndex);
-			if (_dbFileStream.Length <= pageAddress)
-			{
-				return pageIndex;
-			}
-
-			_dbFileStream.Position = pageAddress;
-			if (_dbFileStream.ReadByte() != Constants.InvalidBlockIndex)
-			{
-				return pageIndex;
-			}
+		if (_header.FreePagesStack.Contains(pageIndex) || _dbFileStream.Length <= GetPageAddress(pageIndex))
+		{
+			throw new ArgumentException($"You can't access not allocated page (index: {pageIndex})", nameof(pageIndex));
 		}
 	}
 
-	private void UpdateFirstPageWithFreeBlocks(int pageIndex)
+	private Page GetPageInternal(uint pageIndex)
 	{
-		_header.FirstPageWithFreeBlocks = pageIndex;
-		_dbFileStream.WriteStructure(_headerOffset, ref _header);
-
-		if (!_cachedPages.TryGetValue(pageIndex, out _firstPageWithFreeBlocks!))
+		if (_cachedPages.TryGetValue(pageIndex, out var page))
 		{
-			_firstPageWithFreeBlocks = ReadPage(pageIndex);
+			return page;
 		}
+
+		return _cachedPages[pageIndex] = ReadPage(pageIndex);
 	}
 
-	private long GetPageAddress(int index) => _firstPageOffset + (index * Constants.PageSize);
-
-	private static void CheckPageIndex(int index)
+	private Page ReadPage(uint pageIndex)
 	{
-		if (index >= MaxPageCount)
+		var pageAddress = GetPageAddress(pageIndex);
+
+		PageData pageData;
+		if (_dbFileStream.Length <= pageAddress)
 		{
-			throw new ArgumentOutOfRangeException(nameof(index), $"Index must be [0; {MaxPageCount - 1}]");
+			pageData = default;
+			_dbFileStream.SetLength(pageAddress + Constants.PageSize);
 		}
-	}
-
-	public readonly struct PageAccessor : IDisposable
-	{
-		private readonly PageManager _pageManager;
-
-		public Page Page { get; }
-
-		public PageAccessor(Page page, PageManager pageManager)
+		else
 		{
-			Page = page;
-			_pageManager = pageManager;
+			_dbFileStream.ReadStructure(pageAddress, ref pageData);
 		}
 
-		public void Dispose()
-		{
-			if (Page != null)
-			{
-				_pageManager.CommitPage(Page);
-			}
-		}
+		return new Page(ref pageData);
 	}
 
-	private struct PagesHeader
-	{
-		public int FirstPageWithFreeBlocks { get; set; }
-	}
+	private void WriteHeader() => _dbFileStream.WriteStructure(_headerOffset, ref _header);
+
+	private long GetPageAddress(uint pageIndex) => _firstPageOffset + (pageIndex * Constants.PageSize);
 }

@@ -1,35 +1,54 @@
-﻿namespace KeyValueDb.Paging;
+﻿using KeyValueDb.Common.Extensions;
 
-public sealed class Page
+namespace KeyValueDb.Paging;
+
+internal sealed class Page
 {
-#pragma warning disable SA1401
-	internal PageData PageData;
-#pragma warning restore SA1401
+	private PageData _pageData;
 
-	public int Index { get; }
+	public bool HasChanges { get; set; }
 
-	public bool HasFreeBlocks => PageData.HasFreeBlocks;
-
-	public byte FirstFreeBlock => PageData.FirstFreeBlock;
-
-	public ReadOnlySpan<byte> GetBlockData(byte index, int offset = 0, int length = 0) =>
-		PageData.GetBlockData(index, offset, length);
-
-	public void SetBlockData(byte index, ReadOnlySpan<byte> data, int offset = 0) =>
-		HasChanges = PageData.SetBlockData(index, data, offset) || HasChanges;
-
-	public void FreeBlock(byte index) => HasChanges = PageData.FreeBlock(index) || HasChanges;
-
-	internal bool HasChanges { get; private set; }
-
-	internal Page(ref PageData pageData, int index)
+	public Page(ref PageData pageData)
 	{
-		PageData = pageData;
-		Index = index;
+		_pageData = pageData;
 	}
 
-	internal void ResetChanges()
+	public ref PageData GetPageData() => ref _pageData;
+
+	public ReadOnlySpan<byte> Read(int offset = 0, int length = 0) => GetSlice(offset, length);
+
+	public void Write(ReadOnlySpan<byte> data, int offset = 0)
 	{
-		HasChanges = false;
+		var slice = GetSlice(offset, data.Length);
+		if (data.SequenceEqual(slice))
+		{
+			return;
+		}
+
+		data.CopyTo(slice);
+
+		HasChanges = true;
+	}
+
+	private Span<byte> GetSlice(int offset, int length)
+	{
+		if (offset < 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(offset));
+		}
+
+		if (length < 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(length));
+		}
+
+		var len = length > 0 ? length : Constants.PageSize - offset;
+
+		if (len + offset > Constants.PageSize)
+		{
+			throw new ArgumentException(string.Empty, nameof(offset));
+		}
+
+		return _pageData.AsBytes()[offset..(offset + len)];
 	}
 }

@@ -7,7 +7,7 @@ public struct DbSystemInfo
 {
 	public static readonly int Size = Marshal.SizeOf<DbSystemInfo>();
 
-	public BlockAddress FirstRecord;
+	public RecordAddress FirstRecord;
 
-	public BlockAddress LastRecord;
+	public RecordAddress LastRecord;
 }

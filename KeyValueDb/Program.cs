@@ -1,48 +1,36 @@
-﻿using System.Collections;
-using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
-using KeyValueDb;
+using KeyValueDb.Paging;
 
-foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>().OrderBy(x => x.Key))
+using var pageManager = new PageManager(
+#pragma warning disable CA2000
+	File.Open(
+		"test.page",
+		new FileStreamOptions
+		{
+			Access = FileAccess.ReadWrite,
+			Mode = FileMode.OpenOrCreate,
+			Options = FileOptions.RandomAccess,
+			BufferSize = 0,
+			Share = FileShare.Read,
+		}),
+#pragma warning restore CA2000
+	0);
+
+using (var page = pageManager.AllocatePage())
 {
-	Console.WriteLine($"{entry.Key}={entry.Value}");
+	page.Write(GetString(10));
 }
 
-var timer = Stopwatch.StartNew();
-
-var smallString = GetString(38);
-var mediumString = GetString(100);
-var largeString = GetString(200);
-
-var strings = new[] { smallString, mediumString, largeString, smallString, mediumString };
-
-Console.WriteLine($"Strings allocated: {timer.Elapsed}");
-
-using var db = new Database("test.db");
-db.Set("key1", smallString);
-db.Set("key2", mediumString);
-db.Set("key3", largeString);
-var buffer = new byte[200];
-
-Console.WriteLine($"Strings stored: {timer.Elapsed}");
-var iterations = 10_000_000;
-
-for (var i = 0; i < iterations; i++)
+using (var page = pageManager.AllocatePage())
 {
-	db.TryGet("key1", buffer);
-	db.TryGet("key2", buffer);
-	db.TryGet("key3", buffer);
+	page.Write(GetString(20));
 }
 
-Console.WriteLine($"Strings read: {timer.Elapsed}, iterations: {iterations}");
-Console.WriteLine("Result strings:");
+pageManager.FreePage(0);
+pageManager.GetPage(0);
 
-foreach (var s in new[] { "key1", "key2", "key3" })
-{
-	Console.WriteLine(Encoding.ASCII.GetString(db.Get(s)!));
-}
-
+#pragma warning disable CS8321
 static byte[] GetString(int length) =>
+#pragma warning restore CS8321
 	Encoding.ASCII.GetBytes(string.Join(string.Empty, Enumerable.Range(0, length).Select(x => (x % 10).ToString(CultureInfo.InvariantCulture))));

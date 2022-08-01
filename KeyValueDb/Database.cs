@@ -1,8 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.Paging;
-using KeyValueDb.Paging.Extensions;
-using KeyValueDb.Paging.ReaderWriter;
 
 namespace KeyValueDb;
 
@@ -75,12 +73,12 @@ public sealed class Database : IDisposable
 		}
 
 		var pageWriter = new PageWriter(_pageManager);
-		pageWriter.WriteStructure(new RecordHeader(BlockAddress.Invalid, keyBytes.Length, value.Length));
+		pageWriter.WriteStructure(new RecordHeader(RecordAddress.Invalid, keyBytes.Length, value.Length));
 		pageWriter.Write(keyBytes);
 		pageWriter.Write(value);
 		var newRecordAddress = pageWriter.Commit();
 
-		if (_systemInfo.LastRecord != BlockAddress.Invalid)
+		if (_systemInfo.LastRecord != RecordAddress.Invalid)
 		{
 			using var page = _pageManager.GetPage(_systemInfo.LastRecord.PageIndex);
 			var blockIndex = _systemInfo.LastRecord.BlockIndex;
@@ -92,7 +90,7 @@ public sealed class Database : IDisposable
 
 		_systemInfo.LastRecord = newRecordAddress;
 
-		if (_systemInfo.FirstRecord == BlockAddress.Invalid)
+		if (_systemInfo.FirstRecord == RecordAddress.Invalid)
 		{
 			_systemInfo.FirstRecord = newRecordAddress;
 		}
@@ -117,16 +115,16 @@ public sealed class Database : IDisposable
 		_tempKeyBuffer.Dispose();
 	}
 
-	private (RecordHeader Header, PageReader Reader, BlockAddress RecordAddress)? Find(ReadOnlySpan<byte> key)
+	private (RecordHeader Header, PageReader Reader, RecordAddress RecordAddress)? Find(ReadOnlySpan<byte> key)
 	{
-		if (_systemInfo.FirstRecord == BlockAddress.Invalid)
+		if (_systemInfo.FirstRecord == RecordAddress.Invalid)
 		{
 			return null;
 		}
 
 		var recordAddress = _systemInfo.FirstRecord;
 		var recordKey = _tempKeyBuffer.Value!;
-		while (recordAddress != BlockAddress.Invalid)
+		while (recordAddress != RecordAddress.Invalid)
 		{
 			var reader = new PageReader(_pageManager, recordAddress);
 			reader.ReadStructure(out RecordHeader recordHeader);
@@ -158,24 +156,15 @@ public sealed class Database : IDisposable
 	{
 		_systemInfo = new DbSystemInfo
 		{
-			FirstRecord = BlockAddress.Invalid,
-			LastRecord = BlockAddress.Invalid,
+			FirstRecord = RecordAddress.Invalid,
+			LastRecord = RecordAddress.Invalid,
 		};
 		WriteSystemInfo();
 	}
 
-	private void ReadSystemInfo()
-	{
-		_dbFileStream.ReadStructure(0, out _systemInfo);
-	}
+	private void ReadSystemInfo() => _dbFileStream.ReadStructure(0, ref _systemInfo);
 
-	private void WriteSystemInfo()
-	{
-		_dbFileStream.WriteStructure(0, ref _systemInfo);
-	}
+	private void WriteSystemInfo() => _dbFileStream.WriteStructure(0, ref _systemInfo);
 
-	private static ReadOnlySpan<byte> GetKeyBytes(string key)
-	{
-		return MemoryMarshal.AsBytes(key.AsSpan());
-	}
+	private static ReadOnlySpan<byte> GetKeyBytes(string key) => MemoryMarshal.AsBytes(key.AsSpan());
 }

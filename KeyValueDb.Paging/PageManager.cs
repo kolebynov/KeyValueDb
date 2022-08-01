@@ -72,7 +72,8 @@ public sealed class PageManager : IDisposable
 			return;
 		}
 
-		_dbFileStream.WriteStructure(GetPageAddress(pageIndex), ref page.GetPageData());
+		_dbFileStream.Position = GetPageAddress(pageIndex);
+		_dbFileStream.Write(page.GetPageData());
 		page.HasChanges = false;
 	}
 

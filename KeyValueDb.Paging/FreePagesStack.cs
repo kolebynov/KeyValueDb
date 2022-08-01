@@ -44,8 +44,8 @@ internal unsafe struct FreePagesStack
 		return List[--_head];
 	}
 
-	public readonly bool Contains(uint pageIndex) =>
-		_head > 0 && List[0.._head].Contains(pageIndex);
+	public bool Contains(uint pageIndex) =>
+		_head > 0 && List[.._head].Contains(pageIndex);
 
 	private Span<uint> List => MemoryMarshal.CreateSpan(ref _freePagesList[0], MaxFreePagesCount);
 }

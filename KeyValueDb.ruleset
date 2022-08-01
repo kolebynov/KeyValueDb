@@ -33,6 +33,7 @@
     <Rules AnalyzerId="Microsoft.CodeAnalysis.NetAnalyzers" RuleNamespace="Microsoft.CodeAnalysis.NetAnalyzers">
         <Rule Id="CA1000" Action="None"/>
         <Rule Id="CA1014" Action="None"/>
+        <Rule Id="CA1024" Action="None"/>
         <Rule Id="CA1028" Action="None"/>
         <Rule Id="CA1031" Action="None"/>
         <Rule Id="CA1034" Action="None"/>

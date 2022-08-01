@@ -13,7 +13,7 @@ internal sealed class Page
 		_pageData = pageData;
 	}
 
-	public ref PageData GetPageData() => ref _pageData;
+	public Span<byte> GetPageData() => _pageData.AsBytes();
 
 	public ReadOnlySpan<byte> Read(int offset = 0, int length = 0) => GetSlice(offset, length);
 

@@ -32,7 +32,13 @@ public sealed class PageManager : IDisposable
 	{
 		var pageIndex = _header.FreePagesStack.Count > 0
 			? _header.FreePagesStack.Pop()
-			: LastAllocatedPage + 1;
+			: _header.LastAllocatedPage == Constants.InvalidPageIndex ? 0 : _header.LastAllocatedPage + 1;
+
+		if (pageIndex > _header.LastAllocatedPage || _header.LastAllocatedPage == Constants.InvalidPageIndex)
+		{
+			_header.LastAllocatedPage = pageIndex;
+			WriteHeader();
+		}
 
 		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
 	}
@@ -48,8 +54,7 @@ public sealed class PageManager : IDisposable
 	{
 		CheckPageIndex(pageIndex);
 
-		var lastAllocatedPage = LastAllocatedPage;
-		for (var i = pageIndex + 1; i <= lastAllocatedPage; i++)
+		for (var i = pageIndex + 1; i <= _header.LastAllocatedPage; i++)
 		{
 			if (!_header.FreePagesStack.Contains(i))
 			{
@@ -95,8 +100,6 @@ public sealed class PageManager : IDisposable
 		page.HasChanges = false;
 	}
 
-	private uint LastAllocatedPage => (uint)(((_dbFileStream.Length - _firstPageOffset) / Constants.PageSize) - 1);
-
 	private void CheckPageIndex(uint pageIndex)
 	{
 		if (pageIndex == Constants.InvalidPageIndex)
@@ -104,7 +107,7 @@ public sealed class PageManager : IDisposable
 			throw new ArgumentException($"Invalid page index {pageIndex}", nameof(pageIndex));
 		}
 
-		if (_header.FreePagesStack.Contains(pageIndex) || _dbFileStream.Length <= GetPageAddress(pageIndex))
+		if (_header.FreePagesStack.Contains(pageIndex) || pageIndex > _header.LastAllocatedPage)
 		{
 			throw new ArgumentException($"You can't access not allocated page (index: {pageIndex})", nameof(pageIndex));
 		}

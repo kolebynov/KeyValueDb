@@ -19,7 +19,7 @@ var strings = new[] { smallString, mediumString, largeString, smallString, mediu
 
 Console.WriteLine($"Strings allocated: {timer.Elapsed}");
 
-using var db = new Database("test.db");
+using var db = new Database("test_new_paging.db");
 db.Set("key1", smallString);
 db.Set("key2", mediumString);
 db.Set("key3", largeString);

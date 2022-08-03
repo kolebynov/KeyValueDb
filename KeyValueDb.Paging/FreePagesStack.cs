@@ -16,11 +16,7 @@ internal unsafe struct FreePagesStack
 
 	public int Count => _head;
 
-	public FreePagesStack()
-	{
-		_head = 0;
-		List.Fill(Constants.InvalidPageIndex);
-	}
+	public static FreePagesStack Initial { get; } = CreateInitial();
 
 	public void Push(uint pageIndex)
 	{
@@ -48,4 +44,12 @@ internal unsafe struct FreePagesStack
 		_head > 0 && List[.._head].Contains(pageIndex);
 
 	private Span<uint> List => MemoryMarshal.CreateSpan(ref _freePagesList[0], MaxFreePagesCount);
+
+	private static FreePagesStack CreateInitial()
+	{
+		var value = new FreePagesStack { _head = 0 };
+		value.List.Fill(Constants.InvalidPageIndex);
+
+		return value;
+	}
 }

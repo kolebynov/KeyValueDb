@@ -1,6 +1,6 @@
 ﻿namespace KeyValueDb.Paging;
 
-public readonly struct PageAccessor : IDisposable
+public readonly struct PageAccessor
 {
 	private readonly PageManager _pageManager;
 	private readonly Page _page;
@@ -9,18 +9,11 @@ public readonly struct PageAccessor : IDisposable
 
 	public ReadOnlySpan<byte> Read(int offset = 0, int length = 0) => _page.Read(offset, length);
 
+	public Span<byte> ReadMutable(int offset = 0, int length = 0) => _page.ReadMutable(offset, length);
+
 	public void Write(ReadOnlySpan<byte> data, int offset = 0) => _page.Write(data, offset);
 
-	public PageDataAccessor GetRawPageData() => new(_page);
-
-	internal PageAccessor(Page page, PageManager pageManager, uint pageIndex)
-	{
-		_page = page;
-		_pageManager = pageManager;
-		PageIndex = pageIndex;
-	}
-
-	public void Dispose()
+	public void Commit()
 	{
 		if (_page != null)
 		{
@@ -28,23 +21,10 @@ public readonly struct PageAccessor : IDisposable
 		}
 	}
 
-	public readonly struct PageDataAccessor : IDisposable
+	internal PageAccessor(Page page, PageManager pageManager, uint pageIndex)
 	{
-		private readonly Page _page;
-
-		public Span<byte> PageData => _page.GetPageData();
-
-		public void Dispose()
-		{
-			if (_page != null)
-			{
-				_page.HasChanges = true;
-			}
-		}
-
-		internal PageDataAccessor(Page page)
-		{
-			_page = page;
-		}
+		_page = page;
+		_pageManager = pageManager;
+		PageIndex = pageIndex;
 	}
 }

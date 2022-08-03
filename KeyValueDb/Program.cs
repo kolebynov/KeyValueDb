@@ -1,55 +1,25 @@
 ﻿using System.Globalization;
 using System.Text;
 using KeyValueDb;
-using KeyValueDb.Common.Extensions;
-using KeyValueDb.Paging;
-
-using var pageManager = new PageManager(
-#pragma warning disable CA2000
-	File.Open(
-		"test.page",
-		new FileStreamOptions
-		{
-			Access = FileAccess.ReadWrite,
-			Mode = FileMode.OpenOrCreate,
-			Options = FileOptions.RandomAccess,
-			BufferSize = 0,
-			Share = FileShare.Read,
-		}),
-#pragma warning restore CA2000
-	0);
 
 var smallString = GetString(10);
 var mediumString = GetString(100);
 var largeString = GetString(1000);
 
-uint pageIndex;
-using (var page = pageManager.AllocatePage())
-{
-	pageIndex = page.PageIndex;
-	var recordsPageInit = new RecordsPage();
-	page.Write(recordsPageInit.AsReadOnlyBytes());
-
-	using var pageDataAccessor = page.GetRawPageData();
-	ref var recordsPage = ref pageDataAccessor.PageData.AsRef<RecordsPage>();
-
-	recordsPage.AddRecord(smallString);
-	recordsPage.AddRecord(mediumString);
-	recordsPage.AddRecord(largeString);
-	recordsPage.AddRecord(mediumString);
-	recordsPage.AddRecord(smallString);
-	recordsPage.RemoveRecord(1);
-	recordsPage.RemoveRecord(2);
-	recordsPage.AddRecord(largeString);
-	recordsPage.AddRecord(mediumString);
-
-	foreach (var recordIndex in recordsPage.RecordIndices)
-	{
-		Console.WriteLine($"{recordIndex}: {Encoding.UTF8.GetString(recordsPage.GetRecord(recordIndex))}");
-	}
-}
-
-pageManager.FreePage(pageIndex);
+using var db = new Database("test.db");
+db.Set("key1", smallString);
+db.Set("key2", mediumString);
+db.Set("key3", largeString);
+db.Set("key4", largeString);
+db.Set("key5", largeString);
+db.Set("key6", largeString);
+db.Set("key7", largeString);
+db.Set("key8", largeString);
+db.Set("key9", largeString);
+db.Set("key10", largeString);
+db.Set("key11", largeString);
+db.Set("key12", largeString);
+db.Set("key13", largeString[..710]);
 
 #pragma warning disable CS8321
 static byte[] GetString(int length) =>

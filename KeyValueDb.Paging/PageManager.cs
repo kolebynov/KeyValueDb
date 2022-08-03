@@ -19,7 +19,7 @@ public sealed class PageManager : IDisposable
 
 		if (_dbFileStream.Length <= _headerOffset)
 		{
-			_header = new PageManagerHeader();
+			_header = PageManagerHeader.Initial;
 			WriteHeader();
 		}
 		else
@@ -32,16 +32,34 @@ public sealed class PageManager : IDisposable
 	{
 		var pageIndex = _header.FreePagesStack.Count > 0
 			? _header.FreePagesStack.Pop()
-			: (uint)((_dbFileStream.Length - _firstPageOffset) / Constants.PageSize);
+			: LastAllocatedPage + 1;
 
 		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
 	}
 
-	public PageAccessor GetPage(uint pageIndex)
+	public PageAccessor GetAllocatedPage(uint pageIndex)
 	{
 		CheckPageIndex(pageIndex);
 
 		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
+	}
+
+	public bool TryGetNextAllocatedPage(uint pageIndex, out PageAccessor pageAccessor)
+	{
+		CheckPageIndex(pageIndex);
+
+		var lastAllocatedPage = LastAllocatedPage;
+		for (var i = pageIndex + 1; i <= lastAllocatedPage; i++)
+		{
+			if (!_header.FreePagesStack.Contains(i))
+			{
+				pageAccessor = GetAllocatedPage(i);
+				return true;
+			}
+		}
+
+		pageAccessor = default;
+		return false;
 	}
 
 	public void FreePage(uint pageIndex)
@@ -76,6 +94,8 @@ public sealed class PageManager : IDisposable
 		_dbFileStream.Write(page.GetPageData());
 		page.HasChanges = false;
 	}
+
+	private uint LastAllocatedPage => (uint)(((_dbFileStream.Length - _firstPageOffset) / Constants.PageSize) - 1);
 
 	private void CheckPageIndex(uint pageIndex)
 	{

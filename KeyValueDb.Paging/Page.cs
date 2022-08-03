@@ -17,6 +17,12 @@ internal sealed class Page
 
 	public ReadOnlySpan<byte> Read(int offset = 0, int length = 0) => GetSlice(offset, length);
 
+	public Span<byte> ReadMutable(int offset = 0, int length = 0)
+	{
+		HasChanges = true;
+		return GetSlice(offset, length);
+	}
+
 	public void Write(ReadOnlySpan<byte> data, int offset = 0)
 	{
 		var slice = GetSlice(offset, data.Length);

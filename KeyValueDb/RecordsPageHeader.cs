@@ -11,16 +11,22 @@ public unsafe struct RecordsPageHeader
 
 	public ushort NextFreeOffsetIndex;
 	public ushort LastFilledOffsetIndex;
-#pragma warning disable CS0649
 	private fixed ushort _recordEndOffsets[MaxRecordCount];
-#pragma warning restore CS0649
 
 	public Span<ushort> RecordEndOffsets => MemoryMarshal.CreateSpan(ref _recordEndOffsets[0], MaxRecordCount);
 
-	public RecordsPageHeader()
+	public static RecordsPageHeader Initial { get; } = CreateInitial();
+
+	private static RecordsPageHeader CreateInitial()
 	{
-		NextFreeOffsetIndex = 0;
-		LastFilledOffsetIndex = RecordsPage.InvalidOffsetIndex;
-		RecordEndOffsets.Fill(RecordsPage.InvalidRecordEndOffset);
+		var value = new RecordsPageHeader
+		{
+			NextFreeOffsetIndex = 0,
+			LastFilledOffsetIndex = RecordsPage.InvalidOffsetIndex,
+		};
+
+		value.RecordEndOffsets.Fill(RecordsPage.InvalidRecordEndOffset);
+
+		return value;
 	}
 }

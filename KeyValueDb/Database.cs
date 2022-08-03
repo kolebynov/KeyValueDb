@@ -6,16 +6,16 @@ namespace KeyValueDb;
 
 public sealed class Database : IDisposable
 {
+	private static readonly int MinPageFreeSpaceForRecord = RecordHeader.Size + 8;
+
 	private readonly FileStream _dbFileStream;
 	private readonly PageManager _pageManager;
-	private readonly ThreadLocal<byte[]> _tempKeyBuffer = new(() => new byte[32]);
 	private DbSystemInfo _systemInfo;
 
 	public Database(string path)
 	{
 		_dbFileStream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 0,
 			FileOptions.Asynchronous | FileOptions.RandomAccess);
-		_pageManager = new PageManager(_dbFileStream, DbSystemInfo.Size);
 
 		if (_dbFileStream.Length == 0)
 		{
@@ -23,6 +23,8 @@ public sealed class Database : IDisposable
 		}
 
 		ReadSystemInfo();
+
+		_pageManager = new PageManager(_dbFileStream, DbSystemInfo.Size);
 	}
 
 	public byte[]? Get(string key)
@@ -33,9 +35,8 @@ public sealed class Database : IDisposable
 			return null;
 		}
 
-		var (recordHeader, reader, _) = findResult.Value;
+		var (recordHeader, recordAddress) = findResult.Value;
 		var valueArray = new byte[recordHeader.DataSize];
-		reader.Read(valueArray);
 		return valueArray;
 	}
 
@@ -47,46 +48,74 @@ public sealed class Database : IDisposable
 			return false;
 		}
 
-		var (recordHeader, reader, _) = findResult.Value;
+		var (recordHeader, recordAddress) = findResult.Value;
 		if (buffer.Length < recordHeader.DataSize)
 		{
 			throw new ArgumentException(string.Empty, nameof(buffer));
 		}
 
-		reader.Read(buffer[0..recordHeader.DataSize]);
 		return true;
 	}
 
 	public void Set(string key, byte[] value)
 	{
 		var keyBytes = GetKeyBytes(key);
+
+		if (keyBytes.Length > RecordsPage.PagePayload)
+		{
+			// TODO: Add handling of values that are bigger than page payload
+			throw new NotImplementedException("Add handling of values that are bigger than page payload");
+		}
+
 		var findResult = Find(keyBytes);
 		if (findResult != null)
 		{
-			var (oldHeader, _, recordAddress) = findResult.Value;
-			var pageRewriter = new PageRewriter(_pageManager, recordAddress);
-			pageRewriter.WriteStructure(new RecordHeader(oldHeader.NextRecord, keyBytes.Length, value.Length));
-			pageRewriter.Write(keyBytes);
-			pageRewriter.Write(value);
-			pageRewriter.Commit();
+			var (oldHeader, recordAddress) = findResult.Value;
 			return;
 		}
 
-		var pageWriter = new PageWriter(_pageManager);
-		pageWriter.WriteStructure(new RecordHeader(RecordAddress.Invalid, keyBytes.Length, value.Length));
-		pageWriter.Write(keyBytes);
-		pageWriter.Write(value);
-		var newRecordAddress = pageWriter.Commit();
+		PageAccessor page;
+		if (_systemInfo.FirstPageWithFreeSpace != Constants.InvalidPageIndex)
+		{
+			page = _pageManager.GetAllocatedPage(_systemInfo.FirstPageWithFreeSpace);
+		}
+		else
+		{
+			page = AllocateRecordsPage();
+			_systemInfo.FirstPageWithFreeSpace = page.PageIndex;
+		}
+
+		var header = new RecordHeader(RecordAddress.Invalid, keyBytes.Length, value.Length);
+		var recordData = new RecordsPage.RecordData(in header, keyBytes, value);
+		ushort? recordIndex;
+		while (true)
+		{
+			ref var recordsPage = ref page.ReadMutable().AsRef<RecordsPage>();
+			recordIndex = recordsPage.AddRecord(recordData);
+			if (recordIndex != null)
+			{
+				if (page.PageIndex == _systemInfo.FirstPageWithFreeSpace && recordsPage.FreeSpace < MinPageFreeSpaceForRecord)
+				{
+					_systemInfo.FirstPageWithFreeSpace = GetNextPageWithFreeSpace(_systemInfo.FirstPageWithFreeSpace).PageIndex;
+				}
+
+				break;
+			}
+
+			page = GetNextPageWithFreeSpace(page.PageIndex);
+		}
+
+		var newRecordAddress = new RecordAddress(page.PageIndex, recordIndex.Value);
 
 		if (_systemInfo.LastRecord != RecordAddress.Invalid)
 		{
-			using var page = _pageManager.GetPage(_systemInfo.LastRecord.PageIndex);
-			var blockIndex = _systemInfo.LastRecord.BlockIndex;
-			ref readonly var lastRecordHeader = ref page.Page.GetBlockData(blockIndex, length: RecordHeader.Size)
-				.AsRef<RecordHeader>();
-			var updatedHeader = new RecordHeader(newRecordAddress, lastRecordHeader.KeySize, lastRecordHeader.DataSize);
-			page.Page.SetBlockData(blockIndex, updatedHeader.AsReadOnlyBytes());
+			var prevPage = _pageManager.GetAllocatedPage(_systemInfo.LastRecord.PageIndex);
+			ref var prevRecordsPage = ref prevPage.ReadMutable().AsRef<RecordsPage>();
+			prevRecordsPage.UpdateNextRecordAddress(_systemInfo.LastRecord.RecordIndex, newRecordAddress);
+			prevPage.Commit();
 		}
+
+		page.Commit();
 
 		_systemInfo.LastRecord = newRecordAddress;
 
@@ -106,16 +135,28 @@ public sealed class Database : IDisposable
 			return false;
 		}
 
+		var (_, address) = findResult.Value;
+		var page = _pageManager.GetAllocatedPage(address.PageIndex);
+		ref var recordsPage = ref page.ReadMutable().AsRef<RecordsPage>();
+		recordsPage.RemoveRecord(address.RecordIndex);
+		page.Commit();
+
+		if (page.PageIndex < _systemInfo.FirstPageWithFreeSpace)
+		{
+			_systemInfo.FirstPageWithFreeSpace = page.PageIndex;
+			WriteSystemInfo();
+		}
+
 		return true;
 	}
 
 	public void Dispose()
 	{
 		_dbFileStream.Dispose();
-		_tempKeyBuffer.Dispose();
+		_pageManager.Dispose();
 	}
 
-	private (RecordHeader Header, PageReader Reader, RecordAddress RecordAddress)? Find(ReadOnlySpan<byte> key)
+	private (RecordHeader Header, RecordAddress RecordAddress)? Find(ReadOnlySpan<byte> key)
 	{
 		if (_systemInfo.FirstRecord == RecordAddress.Invalid)
 		{
@@ -123,42 +164,56 @@ public sealed class Database : IDisposable
 		}
 
 		var recordAddress = _systemInfo.FirstRecord;
-		var recordKey = _tempKeyBuffer.Value!;
 		while (recordAddress != RecordAddress.Invalid)
 		{
-			var reader = new PageReader(_pageManager, recordAddress);
-			reader.ReadStructure(out RecordHeader recordHeader);
+			var page = _pageManager.GetAllocatedPage(recordAddress.PageIndex);
+			ref readonly var recordsPage = ref page.Read().AsRef<RecordsPage>();
+			var record = recordsPage.GetRecord(recordAddress.RecordIndex);
 
-			if (recordHeader.KeySize == key.Length)
+			if (record.Header.KeySize == key.Length)
 			{
-				if (recordHeader.KeySize > recordKey.Length)
+				if (record.Key.SequenceEqual(key))
 				{
-					Array.Resize(ref recordKey, recordHeader.KeySize);
-					_tempKeyBuffer.Value = recordKey;
-				}
-
-				var keySpan = recordKey.AsSpan(..recordHeader.KeySize);
-				reader.Read(keySpan);
-
-				if (keySpan.SequenceEqual(key))
-				{
-					return (recordHeader, reader, recordAddress);
+					return (record.Header, recordAddress);
 				}
 			}
 
-			recordAddress = recordHeader.NextRecord;
+			recordAddress = record.Header.NextRecord;
 		}
 
 		return null;
 	}
 
+	private PageAccessor GetNextPageWithFreeSpace(uint startPageIndex)
+	{
+		while (true)
+		{
+			if (!_pageManager.TryGetNextAllocatedPage(startPageIndex, out var page))
+			{
+				page = AllocateRecordsPage();
+			}
+
+			if (page.Read().AsRef<RecordsPage>().FreeSpace >= MinPageFreeSpaceForRecord)
+			{
+				return page;
+			}
+
+			startPageIndex = page.PageIndex;
+		}
+	}
+
+	private PageAccessor AllocateRecordsPage()
+	{
+		var page = _pageManager.AllocatePage();
+		var recordsPageInitial = RecordsPage.Initial;
+		page.Write(recordsPageInitial.AsReadOnlyBytes());
+
+		return page;
+	}
+
 	private void InitializeDatabase()
 	{
-		_systemInfo = new DbSystemInfo
-		{
-			FirstRecord = RecordAddress.Invalid,
-			LastRecord = RecordAddress.Invalid,
-		};
+		_systemInfo = DbSystemInfo.Initial;
 		WriteSystemInfo();
 	}
 

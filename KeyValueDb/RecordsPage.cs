@@ -1,6 +1,6 @@
-﻿using System.Collections;
+﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using KeyValueDb.Common;
+using KeyValueDb.Common.Extensions;
 using KeyValueDb.Paging;
 
 namespace KeyValueDb;
@@ -10,37 +10,42 @@ public unsafe struct RecordsPage
 {
 	public const ushort InvalidRecordEndOffset = ushort.MaxValue;
 	public const ushort InvalidOffsetIndex = ushort.MaxValue;
-
-	private const int PagePayload = Constants.PageSize - RecordsPageHeader.Size;
+	public const int PagePayload = Constants.PageSize - RecordsPageHeader.Size;
 
 	private RecordsPageHeader _header;
 	private fixed byte _payload[PagePayload];
 
-	public RecordIndicesEnumerator RecordIndices => new(ref this);
+	public readonly ushort FreeSpace => _header.LastFilledOffsetIndex == ushort.MaxValue
+		? (ushort)PagePayload
+		: (ushort)(PagePayload - _header.RecordEndOffsets[_header.LastFilledOffsetIndex]);
 
-	public RecordsPage()
-	{
-		_header = new RecordsPageHeader();
-	}
+	public static RecordsPage Initial { get; } = new() { _header = RecordsPageHeader.Initial };
 
-	public ReadOnlySpan<byte> GetRecord(ushort recordIndex)
+	public readonly RecordData GetRecord(ushort recordIndex)
 	{
 		CheckRecordIndex(recordIndex);
 
 		var prevRecordEndOffset = GetPrevRecordEndOffset(recordIndex);
+		ref readonly var header = ref ReadOnlyPayload.Slice(prevRecordEndOffset, RecordHeader.Size).AsRef<RecordHeader>();
 
-		return Payload[prevRecordEndOffset.._header.RecordEndOffsets[recordIndex]];
+		return new RecordData(
+			in header, ReadOnlyPayload.Slice(prevRecordEndOffset + RecordHeader.Size, header.KeySize),
+			ReadOnlyPayload.Slice(prevRecordEndOffset + RecordHeader.Size + header.KeySize, header.DataSize));
 	}
 
-	public ushort? AddRecord(Span<byte> record)
+	public ushort? AddRecord(RecordData record)
 	{
+		if (record.Header.KeySize != record.Key.Length || record.Header.DataSize != record.Data.Length)
+		{
+			throw new ArgumentException(
+				"Different key/data size in the header and the real key/data size",
+				nameof(record));
+		}
+
 		var recordEndOffsets = _header.RecordEndOffsets;
+		var recordSize = record.Size;
 
-		var freeSpace = _header.LastFilledOffsetIndex == ushort.MaxValue
-			? (ushort)PagePayload
-			: (ushort)(PagePayload - recordEndOffsets[_header.LastFilledOffsetIndex]);
-
-		if (_header.NextFreeOffsetIndex >= recordEndOffsets.Length || freeSpace < (ushort)record.Length)
+		if (_header.NextFreeOffsetIndex >= recordEndOffsets.Length || FreeSpace < recordSize)
 		{
 			return null;
 		}
@@ -55,7 +60,7 @@ public unsafe struct RecordsPage
 		}
 		else
 		{
-			ShiftRecords((ushort)(freeOffsetIndex + 1), (short)record.Length);
+			ShiftRecords((ushort)(freeOffsetIndex + 1), (short)recordSize);
 			var nextFreeOffsetIndex = InvalidOffsetIndex;
 			for (var i = (ushort)(freeOffsetIndex + 1); i < _header.LastFilledOffsetIndex; i++)
 			{
@@ -71,9 +76,12 @@ public unsafe struct RecordsPage
 				: (ushort)(_header.LastFilledOffsetIndex + 1);
 		}
 
-		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + record.Length);
+		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + recordSize);
 
-		record.CopyTo(Payload[beginRecordOffset..]);
+		var recordHeader = record.Header;
+		recordHeader.AsReadOnlyBytes().CopyTo(Payload.Slice(beginRecordOffset));
+		record.Key.CopyTo(Payload.Slice(beginRecordOffset + RecordHeader.Size));
+		record.Data.CopyTo(Payload.Slice(beginRecordOffset + RecordHeader.Size + record.Key.Length));
 
 		return freeOffsetIndex;
 	}
@@ -91,9 +99,28 @@ public unsafe struct RecordsPage
 		_header.NextFreeOffsetIndex = index < _header.NextFreeOffsetIndex ? index : _header.NextFreeOffsetIndex;
 	}
 
+	public void UpdateNextRecordAddress(ushort recordIndex, RecordAddress nextRecordAddress)
+	{
+		var record = GetRecord(recordIndex);
+		var newHeader = new RecordHeader(nextRecordAddress, record.Header.KeySize, record.Header.DataSize);
+
+		newHeader.AsReadOnlyBytes().CopyTo(Payload.Slice(_header.RecordEndOffsets[recordIndex] - record.Size, RecordHeader.Size));
+	}
+
 	private Span<byte> Payload => MemoryMarshal.CreateSpan(ref _payload[0], PagePayload);
 
-	private void CheckRecordIndex(ushort recordIndex)
+	private readonly ReadOnlySpan<byte> ReadOnlyPayload
+	{
+		get
+		{
+			fixed (byte* p = _payload)
+			{
+				return MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef<byte>(p), PagePayload);
+			}
+		}
+	}
+
+	private readonly void CheckRecordIndex(ushort recordIndex)
 	{
 		if (recordIndex >= _header.RecordEndOffsets.Length || _header.RecordEndOffsets[recordIndex] == InvalidRecordEndOffset)
 		{
@@ -118,7 +145,7 @@ public unsafe struct RecordsPage
 		}
 	}
 
-	private ushort GetPrevRecordEndOffset(ushort currentRecordIndex)
+	private readonly ushort GetPrevRecordEndOffset(ushort currentRecordIndex)
 	{
 		var recordEndOffsets = _header.RecordEndOffsets;
 		var prevRecordIndex = InvalidOffsetIndex;
@@ -137,47 +164,21 @@ public unsafe struct RecordsPage
 			: (ushort)0;
 	}
 
-	public struct RecordIndicesEnumerator : IEnumerator<ushort>
+	public readonly ref struct RecordData
 	{
-		private readonly StructReference<RecordsPage> _recordsPageRef;
-		private ushort _currentIndex;
+		public readonly RecordHeader Header;
 
-		public ushort Current { get; private set; }
+		public readonly ReadOnlySpan<byte> Key;
 
-		object IEnumerator.Current => Current;
+		public readonly ReadOnlySpan<byte> Data;
 
-		public RecordIndicesEnumerator(ref RecordsPage recordsPage)
+		public ushort Size => (ushort)(RecordHeader.Size + Key.Length + Data.Length);
+
+		public RecordData(in RecordHeader header, ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)
 		{
-			_recordsPageRef = new StructReference<RecordsPage>(ref recordsPage);
-			Current = 0;
-			_currentIndex = 0;
+			Header = header;
+			Key = key;
+			Data = data;
 		}
-
-		public bool MoveNext()
-		{
-			ref readonly var header = ref _recordsPageRef.Value._header;
-			for (var i = _currentIndex; i <= header.LastFilledOffsetIndex; i++)
-			{
-				if (header.RecordEndOffsets[i] != InvalidRecordEndOffset)
-				{
-					Current = i;
-					_currentIndex = (ushort)(i + 1);
-					return true;
-				}
-			}
-
-			return false;
-		}
-
-		public void Reset()
-		{
-			Current = 0;
-		}
-
-		public void Dispose()
-		{
-		}
-
-		public RecordIndicesEnumerator GetEnumerator() => this;
 	}
 }

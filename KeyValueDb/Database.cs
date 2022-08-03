@@ -83,7 +83,7 @@ public sealed class Database : IDisposable
 		}
 
 		PageAccessor page;
-		if (_systemInfo.FirstPageWithFreeSpace != Constants.InvalidPageIndex)
+		if (_systemInfo.FirstPageWithFreeSpace != PageIndex.Invalid)
 		{
 			page = _pageManager.GetAllocatedPage(_systemInfo.FirstPageWithFreeSpace);
 		}
@@ -189,7 +189,7 @@ public sealed class Database : IDisposable
 		return null;
 	}
 
-	private PageAccessor GetNextPageWithFreeSpace(uint startPageIndex)
+	private PageAccessor GetNextPageWithFreeSpace(PageIndex startPageIndex)
 	{
 		while (true)
 		{

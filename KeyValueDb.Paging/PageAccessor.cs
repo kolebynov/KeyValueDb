@@ -5,7 +5,7 @@ public readonly struct PageAccessor
 	private readonly PageManager _pageManager;
 	private readonly Page _page;
 
-	public uint PageIndex { get; }
+	public PageIndex PageIndex { get; }
 
 	public ReadOnlySpan<byte> Read(int offset = 0, int length = 0) => _page.Read(offset, length);
 
@@ -21,7 +21,7 @@ public readonly struct PageAccessor
 		}
 	}
 
-	internal PageAccessor(Page page, PageManager pageManager, uint pageIndex)
+	internal PageAccessor(Page page, PageManager pageManager, PageIndex pageIndex)
 	{
 		_page = page;
 		_pageManager = pageManager;

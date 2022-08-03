@@ -7,11 +7,11 @@ internal struct PageManagerHeader
 {
 	public FreePagesStack FreePagesStack;
 
-	public uint LastAllocatedPage;
+	public PageIndex LastAllocatedPage;
 
 	public static PageManagerHeader Initial { get; } = new()
 	{
 		FreePagesStack = FreePagesStack.Initial,
-		LastAllocatedPage = Constants.InvalidPageIndex,
+		LastAllocatedPage = PageIndex.Invalid,
 	};
 }

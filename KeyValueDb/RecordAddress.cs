@@ -8,13 +8,13 @@ public readonly struct RecordAddress : IEquatable<RecordAddress>
 {
 	public const ushort InvalidRecordIndex = ushort.MaxValue;
 
-	public uint PageIndex { get; }
+	public PageIndex PageIndex { get; }
 
 	public ushort RecordIndex { get; }
 
-	public static RecordAddress Invalid => new(Constants.InvalidPageIndex, InvalidRecordIndex);
+	public static RecordAddress Invalid => new(PageIndex.Invalid, InvalidRecordIndex);
 
-	public RecordAddress(uint pageIndex, ushort recordIndex)
+	public RecordAddress(PageIndex pageIndex, ushort recordIndex)
 	{
 		PageIndex = pageIndex;
 		RecordIndex = recordIndex;

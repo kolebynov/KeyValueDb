@@ -18,7 +18,7 @@ internal unsafe struct FreePagesStack
 
 	public static FreePagesStack Initial { get; } = CreateInitial();
 
-	public void Push(uint pageIndex)
+	public void Push(PageIndex pageIndex)
 	{
 		var list = List;
 		if (_head >= list.Length)
@@ -27,10 +27,10 @@ internal unsafe struct FreePagesStack
 			throw new FreePagesStackFullException();
 		}
 
-		list[_head++] = pageIndex;
+		list[_head++] = pageIndex.Value;
 	}
 
-	public uint Pop()
+	public PageIndex Pop()
 	{
 		if (Count == 0)
 		{
@@ -40,15 +40,15 @@ internal unsafe struct FreePagesStack
 		return List[--_head];
 	}
 
-	public bool Contains(uint pageIndex) =>
-		_head > 0 && List[.._head].Contains(pageIndex);
+	public bool Contains(PageIndex pageIndex) =>
+		_head > 0 && List[.._head].Contains(pageIndex.Value);
 
 	private Span<uint> List => MemoryMarshal.CreateSpan(ref _freePagesList[0], MaxFreePagesCount);
 
 	private static FreePagesStack CreateInitial()
 	{
 		var value = new FreePagesStack { _head = 0 };
-		value.List.Fill(Constants.InvalidPageIndex);
+		value.List.Fill(PageIndex.Invalid.Value);
 
 		return value;
 	}

@@ -8,7 +8,7 @@ public sealed class PageManager : IDisposable
 	private readonly FileStream _dbFileStream;
 	private readonly long _headerOffset;
 	private readonly long _firstPageOffset;
-	private readonly Dictionary<uint, Page> _cachedPages = new();
+	private readonly Dictionary<PageIndex, Page> _cachedPages = new();
 	private PageManagerHeader _header;
 
 	public PageManager(FileStream dbFileStream, long offset)
@@ -32,9 +32,9 @@ public sealed class PageManager : IDisposable
 	{
 		var pageIndex = _header.FreePagesStack.Count > 0
 			? _header.FreePagesStack.Pop()
-			: _header.LastAllocatedPage == Constants.InvalidPageIndex ? 0 : _header.LastAllocatedPage + 1;
+			: _header.LastAllocatedPage == PageIndex.Invalid ? 0 : _header.LastAllocatedPage + 1;
 
-		if (pageIndex > _header.LastAllocatedPage || _header.LastAllocatedPage == Constants.InvalidPageIndex)
+		if (pageIndex > _header.LastAllocatedPage || _header.LastAllocatedPage == PageIndex.Invalid)
 		{
 			_header.LastAllocatedPage = pageIndex;
 			WriteHeader();
@@ -43,14 +43,14 @@ public sealed class PageManager : IDisposable
 		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
 	}
 
-	public PageAccessor GetAllocatedPage(uint pageIndex)
+	public PageAccessor GetAllocatedPage(PageIndex pageIndex)
 	{
 		CheckPageIndex(pageIndex);
 
 		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
 	}
 
-	public bool TryGetNextAllocatedPage(uint pageIndex, out PageAccessor pageAccessor)
+	public bool TryGetNextAllocatedPage(PageIndex pageIndex, out PageAccessor pageAccessor)
 	{
 		CheckPageIndex(pageIndex);
 
@@ -88,7 +88,7 @@ public sealed class PageManager : IDisposable
 		_dbFileStream.Dispose();
 	}
 
-	internal void CommitPage(Page page, uint pageIndex)
+	internal void CommitPage(Page page, PageIndex pageIndex)
 	{
 		if (!page.HasChanges)
 		{
@@ -100,9 +100,9 @@ public sealed class PageManager : IDisposable
 		page.HasChanges = false;
 	}
 
-	private void CheckPageIndex(uint pageIndex)
+	private void CheckPageIndex(PageIndex pageIndex)
 	{
-		if (pageIndex == Constants.InvalidPageIndex)
+		if (pageIndex == PageIndex.Invalid)
 		{
 			throw new ArgumentException($"Invalid page index {pageIndex}", nameof(pageIndex));
 		}
@@ -113,7 +113,7 @@ public sealed class PageManager : IDisposable
 		}
 	}
 
-	private Page GetPageInternal(uint pageIndex)
+	private Page GetPageInternal(PageIndex pageIndex)
 	{
 		if (_cachedPages.TryGetValue(pageIndex, out var page))
 		{
@@ -123,7 +123,7 @@ public sealed class PageManager : IDisposable
 		return _cachedPages[pageIndex] = ReadPage(pageIndex);
 	}
 
-	private Page ReadPage(uint pageIndex)
+	private Page ReadPage(PageIndex pageIndex)
 	{
 		var pageAddress = GetPageAddress(pageIndex);
 
@@ -143,5 +143,5 @@ public sealed class PageManager : IDisposable
 
 	private void WriteHeader() => _dbFileStream.WriteStructure(_headerOffset, ref _header);
 
-	private long GetPageAddress(uint pageIndex) => _firstPageOffset + (pageIndex * Constants.PageSize);
+	private long GetPageAddress(PageIndex pageIndex) => _firstPageOffset + (pageIndex.Value * Constants.PageSize);
 }

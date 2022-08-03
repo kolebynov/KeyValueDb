@@ -11,12 +11,12 @@ public struct DbSystemInfo
 
 	public RecordAddress LastRecord;
 
-	public uint FirstPageWithFreeSpace;
+	public PageIndex FirstPageWithFreeSpace;
 
 	public static DbSystemInfo Initial { get; } = new()
 	{
 		FirstRecord = RecordAddress.Invalid,
 		LastRecord = RecordAddress.Invalid,
-		FirstPageWithFreeSpace = Constants.InvalidPageIndex,
+		FirstPageWithFreeSpace = PageIndex.Invalid,
 	};
 }

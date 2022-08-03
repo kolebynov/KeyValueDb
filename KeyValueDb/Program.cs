@@ -21,6 +21,11 @@ db.Set("key11", largeString);
 db.Set("key12", largeString);
 db.Set("key13", largeString[..710]);
 
+foreach (var key in new[] { "key1", "key2", "key3", "key4", "key5", "key6" })
+{
+	Console.WriteLine($"{key}: {Encoding.UTF8.GetString(db.Get(key)!)}");
+}
+
 #pragma warning disable CS8321
 static byte[] GetString(int length) =>
 #pragma warning restore CS8321

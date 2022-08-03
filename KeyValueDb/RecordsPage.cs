@@ -1,5 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.Paging;
 
@@ -26,11 +27,12 @@ public unsafe struct RecordsPage
 		CheckRecordIndex(recordIndex);
 
 		var prevRecordEndOffset = GetPrevRecordEndOffset(recordIndex);
-		ref readonly var header = ref ReadOnlyPayload.Slice(prevRecordEndOffset, RecordHeader.Size).AsRef<RecordHeader>();
+		var spanReader = new SpanReader<byte>(ReadOnlyPayload[prevRecordEndOffset..]);
+		ref readonly var header = ref spanReader.Read(RecordHeader.Size).AsRef<RecordHeader>();
+		var key = spanReader.Read(header.KeySize);
+		var data = spanReader.Read(header.DataSize);
 
-		return new RecordData(
-			in header, ReadOnlyPayload.Slice(prevRecordEndOffset + RecordHeader.Size, header.KeySize),
-			ReadOnlyPayload.Slice(prevRecordEndOffset + RecordHeader.Size + header.KeySize, header.DataSize));
+		return new RecordData(in header, key, data);
 	}
 
 	public ushort? AddRecord(RecordData record)
@@ -79,9 +81,10 @@ public unsafe struct RecordsPage
 		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + recordSize);
 
 		var recordHeader = record.Header;
-		recordHeader.AsReadOnlyBytes().CopyTo(Payload.Slice(beginRecordOffset));
-		record.Key.CopyTo(Payload.Slice(beginRecordOffset + RecordHeader.Size));
-		record.Data.CopyTo(Payload.Slice(beginRecordOffset + RecordHeader.Size + record.Key.Length));
+		var spanWriter = new SpanWriter<byte>(Payload[beginRecordOffset..]);
+		spanWriter.Write(recordHeader.AsReadOnlyBytes());
+		spanWriter.Write(record.Key);
+		spanWriter.Write(record.Data);
 
 		return freeOffsetIndex;
 	}

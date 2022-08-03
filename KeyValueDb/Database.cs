@@ -37,6 +37,10 @@ public sealed class Database : IDisposable
 
 		var (recordHeader, recordAddress) = findResult.Value;
 		var valueArray = new byte[recordHeader.DataSize];
+		ref readonly var recordsPage = ref _pageManager.GetAllocatedPage(recordAddress.PageIndex).Read().AsRef<RecordsPage>();
+		var record = recordsPage.GetRecord(recordAddress.RecordIndex);
+		record.Data.CopyTo(valueArray);
+
 		return valueArray;
 	}
 
@@ -53,6 +57,10 @@ public sealed class Database : IDisposable
 		{
 			throw new ArgumentException(string.Empty, nameof(buffer));
 		}
+
+		ref readonly var recordsPage = ref _pageManager.GetAllocatedPage(recordAddress.PageIndex).Read().AsRef<RecordsPage>();
+		var record = recordsPage.GetRecord(recordAddress.RecordIndex);
+		record.Data.CopyTo(buffer);
 
 		return true;
 	}
@@ -170,12 +178,9 @@ public sealed class Database : IDisposable
 			ref readonly var recordsPage = ref page.Read().AsRef<RecordsPage>();
 			var record = recordsPage.GetRecord(recordAddress.RecordIndex);
 
-			if (record.Header.KeySize == key.Length)
+			if (record.Header.KeySize == key.Length && record.Key.SequenceEqual(key))
 			{
-				if (record.Key.SequenceEqual(key))
-				{
-					return (record.Header, recordAddress);
-				}
+				return (record.Header, recordAddress);
 			}
 
 			recordAddress = record.Header.NextRecord;

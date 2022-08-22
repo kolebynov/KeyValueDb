@@ -12,7 +12,7 @@ public readonly struct RecordAddress : IEquatable<RecordAddress>
 
 	public ushort RecordIndex { get; }
 
-	public static RecordAddress Invalid => new(PageIndex.Invalid, InvalidRecordIndex);
+	public static RecordAddress Invalid { get; } = new(PageIndex.Invalid, InvalidRecordIndex);
 
 	public RecordAddress(PageIndex pageIndex, ushort recordIndex)
 	{

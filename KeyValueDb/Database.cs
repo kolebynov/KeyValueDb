@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.Paging;
 
@@ -10,19 +11,20 @@ public sealed class Database : IDisposable
 
 	private readonly FileStream _dbFileStream;
 	private readonly PageManager _pageManager;
-	private DbSystemInfo _systemInfo;
+	private readonly FileMappedStructure<DbSystemInfo> _systemInfo;
 
 	public Database(string path)
 	{
 		_dbFileStream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 0,
 			FileOptions.Asynchronous | FileOptions.RandomAccess);
+		_systemInfo = new FileMappedStructure<DbSystemInfo>(_dbFileStream, 0, DbSystemInfo.Initial);
 
 		if (_dbFileStream.Length == 0)
 		{
-			InitializeDatabase();
+			_systemInfo.Write();
 		}
 
-		ReadSystemInfo();
+		_systemInfo.Read();
 
 		_pageManager = new PageManager(_dbFileStream, DbSystemInfo.Size);
 	}
@@ -83,14 +85,15 @@ public sealed class Database : IDisposable
 		}
 
 		PageAccessor page;
-		if (_systemInfo.FirstPageWithFreeSpace != PageIndex.Invalid)
+		using var systemInfoRef = _systemInfo.GetMutableRef();
+		if (systemInfoRef.Ref.FirstPageWithFreeSpace != PageIndex.Invalid)
 		{
-			page = _pageManager.GetAllocatedPage(_systemInfo.FirstPageWithFreeSpace);
+			page = _pageManager.GetAllocatedPage(systemInfoRef.Ref.FirstPageWithFreeSpace);
 		}
 		else
 		{
 			page = AllocateRecordsPage();
-			_systemInfo.FirstPageWithFreeSpace = page.PageIndex;
+			systemInfoRef.Ref.FirstPageWithFreeSpace = page.PageIndex;
 		}
 
 		var header = new RecordHeader(RecordAddress.Invalid, keyBytes.Length, value.Length);
@@ -102,9 +105,9 @@ public sealed class Database : IDisposable
 			recordIndex = recordsPage.AddRecord(recordData);
 			if (recordIndex != null)
 			{
-				if (page.PageIndex == _systemInfo.FirstPageWithFreeSpace && recordsPage.FreeSpace < MinPageFreeSpaceForRecord)
+				if (page.PageIndex == systemInfoRef.Ref.FirstPageWithFreeSpace && recordsPage.FreeSpace < MinPageFreeSpaceForRecord)
 				{
-					_systemInfo.FirstPageWithFreeSpace = GetNextPageWithFreeSpace(_systemInfo.FirstPageWithFreeSpace).PageIndex;
+					systemInfoRef.Ref.FirstPageWithFreeSpace = GetNextPageWithFreeSpace(systemInfoRef.Ref.FirstPageWithFreeSpace).PageIndex;
 				}
 
 				break;
@@ -115,24 +118,22 @@ public sealed class Database : IDisposable
 
 		var newRecordAddress = new RecordAddress(page.PageIndex, recordIndex.Value);
 
-		if (_systemInfo.LastRecord != RecordAddress.Invalid)
+		if (systemInfoRef.Ref.LastRecord != RecordAddress.Invalid)
 		{
-			var prevPage = _pageManager.GetAllocatedPage(_systemInfo.LastRecord.PageIndex);
+			var prevPage = _pageManager.GetAllocatedPage(systemInfoRef.Ref.LastRecord.PageIndex);
 			ref var prevRecordsPage = ref prevPage.ReadMutable().AsRef<RecordsPage>();
-			prevRecordsPage.UpdateNextRecordAddress(_systemInfo.LastRecord.RecordIndex, newRecordAddress);
+			prevRecordsPage.UpdateNextRecordAddress(systemInfoRef.Ref.LastRecord.RecordIndex, newRecordAddress);
 			prevPage.Commit();
 		}
 
 		page.Commit();
 
-		_systemInfo.LastRecord = newRecordAddress;
+		systemInfoRef.Ref.LastRecord = newRecordAddress;
 
-		if (_systemInfo.FirstRecord == RecordAddress.Invalid)
+		if (systemInfoRef.Ref.FirstRecord == RecordAddress.Invalid)
 		{
-			_systemInfo.FirstRecord = newRecordAddress;
+			systemInfoRef.Ref.FirstRecord = newRecordAddress;
 		}
-
-		WriteSystemInfo();
 	}
 
 	public bool Remove(string key)
@@ -149,10 +150,10 @@ public sealed class Database : IDisposable
 		recordsPage.RemoveRecord(address.RecordIndex);
 		page.Commit();
 
-		if (page.PageIndex < _systemInfo.FirstPageWithFreeSpace)
+		if (page.PageIndex < _systemInfo.ReadOnlyRef.FirstPageWithFreeSpace)
 		{
-			_systemInfo.FirstPageWithFreeSpace = page.PageIndex;
-			WriteSystemInfo();
+			using var systemInfoRef = _systemInfo.GetMutableRef();
+			systemInfoRef.Ref.FirstPageWithFreeSpace = page.PageIndex;
 		}
 
 		return true;
@@ -166,12 +167,12 @@ public sealed class Database : IDisposable
 
 	private (RecordHeader Header, RecordAddress RecordAddress)? Find(ReadOnlySpan<byte> key)
 	{
-		if (_systemInfo.FirstRecord == RecordAddress.Invalid)
+		if (_systemInfo.ReadOnlyRef.FirstRecord == RecordAddress.Invalid)
 		{
 			return null;
 		}
 
-		var recordAddress = _systemInfo.FirstRecord;
+		var recordAddress = _systemInfo.ReadOnlyRef.FirstRecord;
 		while (recordAddress != RecordAddress.Invalid)
 		{
 			var page = _pageManager.GetAllocatedPage(recordAddress.PageIndex);
@@ -215,16 +216,6 @@ public sealed class Database : IDisposable
 
 		return page;
 	}
-
-	private void InitializeDatabase()
-	{
-		_systemInfo = DbSystemInfo.Initial;
-		WriteSystemInfo();
-	}
-
-	private void ReadSystemInfo() => _dbFileStream.ReadStructure(0, ref _systemInfo);
-
-	private void WriteSystemInfo() => _dbFileStream.WriteStructure(0, ref _systemInfo);
 
 	private static ReadOnlySpan<byte> GetKeyBytes(string key) => MemoryMarshal.AsBytes(key.AsSpan());
 }

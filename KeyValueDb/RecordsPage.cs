@@ -80,9 +80,9 @@ public unsafe struct RecordsPage
 
 		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + recordSize);
 
-		var recordHeader = record.Header;
 		var spanWriter = new SpanWriter<byte>(Payload[beginRecordOffset..]);
-		spanWriter.Write(recordHeader.AsReadOnlyBytes());
+		var recordHeader = record.Header;
+		spanWriter.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref recordHeader, 1)));
 		spanWriter.Write(record.Key);
 		spanWriter.Write(record.Data);
 

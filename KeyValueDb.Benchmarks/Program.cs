@@ -5,11 +5,10 @@ using BenchmarkDotNet.Loggers;
 using BenchmarkDotNet.Running;
 using KeyValueDb.Benchmarks;
 
+var job = Job.Default
+	.WithEnvironmentVariables(
+		new EnvironmentVariable("DOTNET_TC_QuickJitForLoops", "1"),
+		new EnvironmentVariable("DOTNET_TieredPGO", "1"),
+		new EnvironmentVariable("DOTNET_ReadyToRun", "0"));
 BenchmarkRunner.Run<DatabaseBenchmarks>(DefaultConfig.Instance
-	.AddJob(Job.Default
-		.WithRuntime(CoreRuntime.Core60)
-		.WithEnvironmentVariables(
-			new EnvironmentVariable("DOTNET_TC_QuickJitForLoops", "1"),
-			new EnvironmentVariable("DOTNET_TieredPGO", "1"),
-			new EnvironmentVariable("DOTNET_ReadyToRun", "0")))
-	.AddLogger(ConsoleLogger.Default));
+	.AddJob(job.WithRuntime(CoreRuntime.CreateForNewVersion("net7.0", ".NET 7.0"))));

@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 
 namespace KeyValueDb.Paging;
@@ -6,38 +7,36 @@ namespace KeyValueDb.Paging;
 public sealed class PageManager : IDisposable
 {
 	private readonly FileStream _dbFileStream;
-	private readonly long _headerOffset;
 	private readonly long _firstPageOffset;
 	private readonly Dictionary<PageIndex, Page> _cachedPages = new();
-	private PageManagerHeader _header;
+	private FileMappedStructure<PageManagerHeader> _header;
 
 	public PageManager(FileStream dbFileStream, long offset)
 	{
 		_dbFileStream = dbFileStream ?? throw new ArgumentNullException(nameof(dbFileStream));
-		_headerOffset = offset;
 		_firstPageOffset = offset + Marshal.SizeOf<PageManagerHeader>();
+		_header = new FileMappedStructure<PageManagerHeader>(dbFileStream, offset, PageManagerHeader.Initial);
 
-		if (_dbFileStream.Length <= _headerOffset)
+		if (_dbFileStream.Length <= offset)
 		{
-			_header = PageManagerHeader.Initial;
-			WriteHeader();
+			_header.Write();
 		}
 		else
 		{
-			_dbFileStream.ReadStructure(_headerOffset, ref _header);
+			_header.Read();
 		}
 	}
 
 	public PageAccessor AllocatePage()
 	{
-		var pageIndex = _header.FreePagesStack.Count > 0
-			? _header.FreePagesStack.Pop()
-			: _header.LastAllocatedPage == PageIndex.Invalid ? 0 : _header.LastAllocatedPage + 1;
+		var pageIndex = _header.ReadOnlyRef.FreePagesStack.Count > 0
+			? _header.ReadOnlyRef.FreePagesStack.Pop()
+			: _header.ReadOnlyRef.LastAllocatedPage == PageIndex.Invalid ? 0 : _header.ReadOnlyRef.LastAllocatedPage + 1;
 
-		if (pageIndex > _header.LastAllocatedPage || _header.LastAllocatedPage == PageIndex.Invalid)
+		if (pageIndex > _header.ReadOnlyRef.LastAllocatedPage || _header.ReadOnlyRef.LastAllocatedPage == PageIndex.Invalid)
 		{
-			_header.LastAllocatedPage = pageIndex;
-			WriteHeader();
+			using var headerMutableRef = _header.GetMutableRef();
+			headerMutableRef.Ref.LastAllocatedPage = pageIndex;
 		}
 
 		return new PageAccessor(GetPageInternal(pageIndex), this, pageIndex);
@@ -54,9 +53,9 @@ public sealed class PageManager : IDisposable
 	{
 		CheckPageIndex(pageIndex);
 
-		for (var i = pageIndex + 1; i <= _header.LastAllocatedPage; i++)
+		for (var i = pageIndex + 1; i <= _header.ReadOnlyRef.LastAllocatedPage; i++)
 		{
-			if (!_header.FreePagesStack.Contains(i))
+			if (!_header.ReadOnlyRef.FreePagesStack.Contains(i))
 			{
 				pageAccessor = GetAllocatedPage(i);
 				return true;
@@ -79,8 +78,8 @@ public sealed class PageManager : IDisposable
 			return;
 		}
 
-		_header.FreePagesStack.Push(pageIndex);
-		WriteHeader();
+		using var headerMutRef = _header.GetMutableRef();
+		headerMutRef.Ref.FreePagesStack.Push(pageIndex);
 	}
 
 	public void Dispose()
@@ -107,7 +106,7 @@ public sealed class PageManager : IDisposable
 			throw new ArgumentException($"Invalid page index {pageIndex}", nameof(pageIndex));
 		}
 
-		if (_header.FreePagesStack.Contains(pageIndex) || pageIndex > _header.LastAllocatedPage)
+		if (_header.ReadOnlyRef.FreePagesStack.Contains(pageIndex) || pageIndex > _header.ReadOnlyRef.LastAllocatedPage)
 		{
 			throw new ArgumentException($"You can't access not allocated page (index: {pageIndex})", nameof(pageIndex));
 		}
@@ -140,8 +139,6 @@ public sealed class PageManager : IDisposable
 
 		return new Page(ref pageData);
 	}
-
-	private void WriteHeader() => _dbFileStream.WriteStructure(_headerOffset, ref _header);
 
 	private long GetPageAddress(PageIndex pageIndex) => _firstPageOffset + (pageIndex.Value * Constants.PageSize);
 }

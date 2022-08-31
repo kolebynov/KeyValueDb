@@ -1,6 +1,6 @@
 ﻿namespace KeyValueDb.Paging;
 
-public readonly struct PageAccessor
+public readonly struct PageAccessor : IDisposable
 {
 	private readonly PageManager _pageManager;
 	private readonly Page _page;
@@ -13,7 +13,7 @@ public readonly struct PageAccessor
 
 	public void Write(ReadOnlySpan<byte> data, int offset = 0) => _page.Write(data, offset);
 
-	public void Commit()
+	public void Dispose()
 	{
 		if (_page != null)
 		{

@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using KeyValueDb.Paging.Exceptions;
 
 namespace KeyValueDb.Paging;
@@ -14,7 +15,7 @@ internal unsafe struct FreePagesStack
 	private fixed uint _freePagesList[MaxFreePagesCount];
 #pragma warning restore CS0649
 
-	public int Count => _head;
+	public readonly int Count => _head;
 
 	public static FreePagesStack Initial { get; } = CreateInitial();
 
@@ -40,10 +41,13 @@ internal unsafe struct FreePagesStack
 		return List[--_head];
 	}
 
-	public bool Contains(PageIndex pageIndex) =>
-		_head > 0 && List[.._head].Contains(pageIndex.Value);
+	public readonly bool Contains(PageIndex pageIndex) =>
+		_head > 0 && ReadOnlyList[.._head].Contains(pageIndex.Value);
 
 	private Span<uint> List => MemoryMarshal.CreateSpan(ref _freePagesList[0], MaxFreePagesCount);
+
+	private readonly ReadOnlySpan<uint> ReadOnlyList => MemoryMarshal.CreateReadOnlySpan(
+		ref Unsafe.AsRef(in _freePagesList[0]), MaxFreePagesCount);
 
 	private static FreePagesStack CreateInitial()
 	{

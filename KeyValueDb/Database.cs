@@ -120,13 +120,12 @@ public sealed class Database : IDisposable
 
 		if (systemInfoRef.Ref.LastRecord != RecordAddress.Invalid)
 		{
-			var prevPage = _pageManager.GetAllocatedPage(systemInfoRef.Ref.LastRecord.PageIndex);
+			using var prevPage = _pageManager.GetAllocatedPage(systemInfoRef.Ref.LastRecord.PageIndex);
 			ref var prevRecordsPage = ref prevPage.ReadMutable().AsRef<RecordsPage>();
 			prevRecordsPage.UpdateNextRecordAddress(systemInfoRef.Ref.LastRecord.RecordIndex, newRecordAddress);
-			prevPage.Commit();
 		}
 
-		page.Commit();
+		page.Dispose();
 
 		systemInfoRef.Ref.LastRecord = newRecordAddress;
 
@@ -145,10 +144,9 @@ public sealed class Database : IDisposable
 		}
 
 		var (_, address) = findResult.Value;
-		var page = _pageManager.GetAllocatedPage(address.PageIndex);
+		using var page = _pageManager.GetAllocatedPage(address.PageIndex);
 		ref var recordsPage = ref page.ReadMutable().AsRef<RecordsPage>();
 		recordsPage.RemoveRecord(address.RecordIndex);
-		page.Commit();
 
 		if (page.PageIndex < _systemInfo.ReadOnlyRef.FirstPageWithFreeSpace)
 		{

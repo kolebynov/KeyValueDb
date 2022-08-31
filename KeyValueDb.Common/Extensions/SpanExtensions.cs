@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace KeyValueDb.Common.Extensions;
 
@@ -8,9 +9,9 @@ public static class SpanExtensions
 		where T : struct =>
 		MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref instance, length));
 
-	public static ReadOnlySpan<byte> AsReadOnlyBytes<T>(this ref T instance, int length = 1)
+	public static ReadOnlySpan<byte> AsReadOnlyBytes<T>(in T instance, int length = 1)
 		where T : struct =>
-		MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref instance, length));
+		MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in instance), length));
 
 	public static ref T AsRef<T>(this Span<byte> span) where T : struct => ref MemoryMarshal.AsRef<T>(span);
 

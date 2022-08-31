@@ -27,7 +27,7 @@ public class FileMappedStructure<T>
 
 	public void Write()
 	{
-		_fileStream.WriteStructure(_filePosition, ref _structure);
+		_fileStream.WriteStructure(_filePosition, in _structure);
 	}
 
 	public readonly struct MutableRef : IDisposable

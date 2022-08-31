@@ -210,7 +210,7 @@ public sealed class Database : IDisposable
 	{
 		var page = _pageManager.AllocatePage();
 		var recordsPageInitial = RecordsPage.Initial;
-		page.Write(recordsPageInitial.AsReadOnlyBytes());
+		page.Write(recordsPageInitial.AsBytes());
 
 		return page;
 	}

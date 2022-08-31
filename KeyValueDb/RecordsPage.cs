@@ -107,7 +107,7 @@ public unsafe struct RecordsPage
 		var record = GetRecord(recordIndex);
 		var newHeader = new RecordHeader(nextRecordAddress, record.Header.KeySize, record.Header.DataSize);
 
-		newHeader.AsReadOnlyBytes().CopyTo(Payload.Slice(_header.RecordEndOffsets[recordIndex] - record.Size, RecordHeader.Size));
+		newHeader.AsBytes().CopyTo(Payload.Slice(_header.RecordEndOffsets[recordIndex] - record.Size, RecordHeader.Size));
 	}
 
 	private Span<byte> Payload => MemoryMarshal.CreateSpan(ref _payload[0], PagePayload);

@@ -26,7 +26,7 @@ db.Set("key3", largeString);
 var buffer = new byte[200];
 
 Console.WriteLine($"Strings stored: {timer.Elapsed}");
-var iterations = 10_000_000;
+var iterations = 20_000_000;
 
 for (var i = 0; i < iterations; i++)
 {

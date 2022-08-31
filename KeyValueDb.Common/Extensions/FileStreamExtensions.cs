@@ -14,10 +14,10 @@ public static class FileStreamExtensions
 		}
 	}
 
-	public static void WriteStructure<T>(this FileStream fileStream, long position, ref T structure)
+	public static void WriteStructure<T>(this FileStream fileStream, long position, in T structure)
 		where T : unmanaged
 	{
 		fileStream.Position = position;
-		fileStream.Write(structure.AsReadOnlyBytes());
+		fileStream.Write(SpanExtensions.AsReadOnlyBytes(in structure));
 	}
 }

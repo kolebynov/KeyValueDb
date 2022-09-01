@@ -90,6 +90,10 @@ public unsafe struct RecordsPage
 
 		offsets[index] = InvalidRecordEndOffset;
 		_header.NextFreeOffsetIndex = index < _header.NextFreeOffsetIndex ? index : _header.NextFreeOffsetIndex;
+		if (index == _header.LastFilledOffsetIndex)
+		{
+			_header.LastFilledOffsetIndex = GetPrevRecordEndOffsetIndex(index);
+		}
 	}
 
 	private Span<byte> Payload => MemoryMarshal.CreateSpan(ref _payload[0], PagePayload);
@@ -125,6 +129,16 @@ public unsafe struct RecordsPage
 	private readonly ushort GetPrevRecordEndOffset(ushort currentRecordIndex)
 	{
 		var recordEndOffsets = _header.RecordEndOffsets;
+		var prevRecordIndex = GetPrevRecordEndOffsetIndex(currentRecordIndex);
+
+		return prevRecordIndex != InvalidOffsetIndex
+			? recordEndOffsets[prevRecordIndex]
+			: (ushort)0;
+	}
+
+	private readonly ushort GetPrevRecordEndOffsetIndex(ushort currentRecordIndex)
+	{
+		var recordEndOffsets = _header.RecordEndOffsets;
 		var prevRecordIndex = InvalidOffsetIndex;
 
 		for (var i = currentRecordIndex - 1; i >= 0; i--)
@@ -136,8 +150,6 @@ public unsafe struct RecordsPage
 			}
 		}
 
-		return prevRecordIndex != InvalidOffsetIndex
-			? recordEndOffsets[prevRecordIndex]
-			: (ushort)0;
+		return prevRecordIndex;
 	}
 }

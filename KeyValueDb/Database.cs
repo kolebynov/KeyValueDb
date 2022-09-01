@@ -86,7 +86,7 @@ public sealed class Database : IDisposable
 
 		PageAccessor page;
 		using var systemInfoRef = _systemInfo.GetMutableRef();
-		if (systemInfoRef.Ref.FirstPageWithFreeSpace != PageIndex.Invalid)
+		if (!systemInfoRef.Ref.FirstPageWithFreeSpace.IsInvalid)
 		{
 			page = _pageManager.GetAllocatedPage(systemInfoRef.Ref.FirstPageWithFreeSpace);
 		}

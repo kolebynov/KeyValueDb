@@ -9,6 +9,8 @@ public readonly struct PageIndex : IEquatable<PageIndex>
 
 	public static PageIndex Invalid { get; } = new(uint.MaxValue);
 
+	public bool IsInvalid => this == Invalid;
+
 	public PageIndex(uint value)
 	{
 		Value = value;

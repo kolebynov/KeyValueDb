@@ -112,16 +112,8 @@ public unsafe struct RecordsPage
 
 	private Span<byte> Payload => MemoryMarshal.CreateSpan(ref _payload[0], PagePayload);
 
-	private readonly ReadOnlySpan<byte> ReadOnlyPayload
-	{
-		get
-		{
-			fixed (byte* p = _payload)
-			{
-				return MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef<byte>(p), PagePayload);
-			}
-		}
-	}
+	private readonly ReadOnlySpan<byte> ReadOnlyPayload =>
+		MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in _payload[0]), PagePayload);
 
 	private readonly void CheckRecordIndex(ushort recordIndex)
 	{

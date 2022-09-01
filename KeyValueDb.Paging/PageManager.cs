@@ -31,9 +31,9 @@ public sealed class PageManager : IDisposable
 	{
 		var pageIndex = _header.ReadOnlyRef.FreePagesStack.Count > 0
 			? _header.ReadOnlyRef.FreePagesStack.Pop()
-			: _header.ReadOnlyRef.LastAllocatedPage == PageIndex.Invalid ? 0 : _header.ReadOnlyRef.LastAllocatedPage + 1;
+			: _header.ReadOnlyRef.LastAllocatedPage.IsInvalid ? 0 : _header.ReadOnlyRef.LastAllocatedPage + 1;
 
-		if (pageIndex > _header.ReadOnlyRef.LastAllocatedPage || _header.ReadOnlyRef.LastAllocatedPage == PageIndex.Invalid)
+		if (pageIndex > _header.ReadOnlyRef.LastAllocatedPage || _header.ReadOnlyRef.LastAllocatedPage.IsInvalid)
 		{
 			using var headerMutableRef = _header.GetMutableRef();
 			headerMutableRef.Ref.LastAllocatedPage = pageIndex;
@@ -101,7 +101,7 @@ public sealed class PageManager : IDisposable
 
 	private void CheckPageIndex(PageIndex pageIndex)
 	{
-		if (pageIndex == PageIndex.Invalid)
+		if (pageIndex.IsInvalid)
 		{
 			throw new ArgumentException($"Invalid page index {pageIndex}", nameof(pageIndex));
 		}

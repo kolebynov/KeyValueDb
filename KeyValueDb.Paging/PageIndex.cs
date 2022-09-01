@@ -16,6 +16,8 @@ public readonly struct PageIndex : IEquatable<PageIndex>
 		Value = value;
 	}
 
+	public override string ToString() => Value.ToString();
+
 	public static implicit operator PageIndex(uint value) => new(value);
 
 	public bool Equals(PageIndex other) => Value == other.Value;

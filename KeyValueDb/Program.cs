@@ -14,12 +14,20 @@ var timer = Stopwatch.StartNew();
 var smallString = GetString(38);
 var mediumString = GetString(100);
 var largeString = GetString(200);
+var veryLargeString = GetString(2000);
 
 var strings = new[] { smallString, mediumString, largeString, smallString, mediumString };
 
 Console.WriteLine($"Strings allocated: {timer.Elapsed}");
 
-using var db = new Database("test_new_paging.db");
+using var db = new Database("test_new_paging2.db");
+var addr1 = db.RecordManager.Add(largeString);
+var addr2 = db.RecordManager.Add(veryLargeString);
+var addr3 = db.RecordManager.Add(veryLargeString);
+var val2 = db.RecordManager.Get(addr2);
+db.RecordManager.Remove(addr1);
+db.RecordManager.Remove(addr2);
+db.RecordManager.Remove(addr3);
 db.Set("key1", smallString);
 db.Set("key2", mediumString);
 db.Set("key3", largeString);

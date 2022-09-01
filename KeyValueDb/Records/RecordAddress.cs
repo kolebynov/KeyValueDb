@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using KeyValueDb.Paging;
 
-namespace KeyValueDb;
+namespace KeyValueDb.Records;
 
 [StructLayout(LayoutKind.Sequential, Pack = 2)]
 public readonly struct RecordAddress : IEquatable<RecordAddress>
@@ -19,6 +19,8 @@ public readonly struct RecordAddress : IEquatable<RecordAddress>
 		PageIndex = pageIndex;
 		RecordIndex = recordIndex;
 	}
+
+	public override string ToString() => $"{PageIndex}:{RecordIndex}";
 
 	public bool Equals(RecordAddress other) => PageIndex == other.PageIndex && RecordIndex == other.RecordIndex;
 

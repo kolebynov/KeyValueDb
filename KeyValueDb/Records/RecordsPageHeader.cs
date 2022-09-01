@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace KeyValueDb;
+namespace KeyValueDb.Records;
 
 [StructLayout(LayoutKind.Sequential, Pack = 2, Size = Size)]
 public unsafe struct RecordsPageHeader

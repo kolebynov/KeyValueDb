@@ -4,12 +4,14 @@ using KeyValueDb.Common.Extensions;
 
 namespace KeyValueDb.Paging;
 
-public sealed class PageManager : IDisposable
+public sealed class PageManager
 {
 	private readonly FileStream _dbFileStream;
 	private readonly long _firstPageOffset;
 	private readonly Dictionary<PageIndex, Page> _cachedPages = new();
 	private FileMappedStructure<PageManagerHeader> _header;
+
+	public static int HeaderSize => Marshal.SizeOf<PageManagerHeader>();
 
 	public PageManager(FileStream dbFileStream, long offset)
 	{
@@ -80,11 +82,6 @@ public sealed class PageManager : IDisposable
 
 		using var headerMutRef = _header.GetMutableRef();
 		headerMutRef.Ref.FreePagesStack.Push(pageIndex);
-	}
-
-	public void Dispose()
-	{
-		_dbFileStream.Dispose();
 	}
 
 	internal void CommitPage(Page page, PageIndex pageIndex)

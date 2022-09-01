@@ -4,7 +4,7 @@ using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.Paging;
 
-namespace KeyValueDb;
+namespace KeyValueDb.Records;
 
 [StructLayout(LayoutKind.Sequential, Size = Constants.PageSize)]
 public unsafe struct RecordsPage
@@ -22,30 +22,21 @@ public unsafe struct RecordsPage
 
 	public static RecordsPage Initial { get; } = new() { _header = RecordsPageHeader.Initial };
 
-	public readonly RecordData GetRecord(ushort recordIndex)
+	public readonly ReadOnlySpan<byte> GetRecord(ushort recordIndex)
 	{
 		CheckRecordIndex(recordIndex);
 
 		var prevRecordEndOffset = GetPrevRecordEndOffset(recordIndex);
 		var spanReader = new SpanReader<byte>(ReadOnlyPayload[prevRecordEndOffset..]);
 		ref readonly var header = ref spanReader.Read(RecordHeader.Size).AsRef<RecordHeader>();
-		var key = spanReader.Read(header.KeySize);
-		var data = spanReader.Read(header.DataSize);
 
-		return new RecordData(in header, key, data);
+		return spanReader.Read(header.DataSize);
 	}
 
-	public ushort? AddRecord(RecordData record)
+	public ushort? AddRecord(ReadOnlySpan<byte> recordData)
 	{
-		if (record.Header.KeySize != record.Key.Length || record.Header.DataSize != record.Data.Length)
-		{
-			throw new ArgumentException(
-				"Different key/data size in the header and the real key/data size",
-				nameof(record));
-		}
-
 		var recordEndOffsets = _header.RecordEndOffsets;
-		var recordSize = record.Size;
+		var recordSize = recordData.Length;
 
 		if (_header.NextFreeOffsetIndex >= recordEndOffsets.Length || FreeSpace < recordSize)
 		{
@@ -81,10 +72,9 @@ public unsafe struct RecordsPage
 		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + recordSize);
 
 		var spanWriter = new SpanWriter<byte>(Payload[beginRecordOffset..]);
-		var recordHeader = record.Header;
+		var recordHeader = new RecordHeader(recordSize);
 		spanWriter.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref recordHeader, 1)));
-		spanWriter.Write(record.Key);
-		spanWriter.Write(record.Data);
+		spanWriter.Write(recordData);
 
 		return freeOffsetIndex;
 	}
@@ -100,14 +90,6 @@ public unsafe struct RecordsPage
 
 		offsets[index] = InvalidRecordEndOffset;
 		_header.NextFreeOffsetIndex = index < _header.NextFreeOffsetIndex ? index : _header.NextFreeOffsetIndex;
-	}
-
-	public void UpdateNextRecordAddress(ushort recordIndex, RecordAddress nextRecordAddress)
-	{
-		var record = GetRecord(recordIndex);
-		var newHeader = new RecordHeader(nextRecordAddress, record.Header.KeySize, record.Header.DataSize);
-
-		newHeader.AsBytes().CopyTo(Payload.Slice(_header.RecordEndOffsets[recordIndex] - record.Size, RecordHeader.Size));
 	}
 
 	private Span<byte> Payload => MemoryMarshal.CreateSpan(ref _payload[0], PagePayload);
@@ -157,23 +139,5 @@ public unsafe struct RecordsPage
 		return prevRecordIndex != InvalidOffsetIndex
 			? recordEndOffsets[prevRecordIndex]
 			: (ushort)0;
-	}
-
-	public readonly ref struct RecordData
-	{
-		public readonly RecordHeader Header;
-
-		public readonly ReadOnlySpan<byte> Key;
-
-		public readonly ReadOnlySpan<byte> Data;
-
-		public ushort Size => (ushort)(RecordHeader.Size + Key.Length + Data.Length);
-
-		public RecordData(in RecordHeader header, ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)
-		{
-			Header = header;
-			Key = key;
-			Data = data;
-		}
 	}
 }

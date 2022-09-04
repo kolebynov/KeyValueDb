@@ -51,16 +51,6 @@ public sealed class BTreeIndex
 
 	private ref readonly NodeData GetNode(RecordAddress nodeAddress) => ref _recordManager.Get(nodeAddress).AsRef<NodeData>();
 
-	private ref struct Node
-	{
-		private readonly ref NodeData _nodeData;
-
-		public Node(ref NodeData nodeData)
-		{
-			_nodeData = ref nodeData;
-		}
-	}
-
 	[StructLayout(LayoutKind.Sequential)]
 	private unsafe struct NodeData
 	{

@@ -6,24 +6,17 @@ namespace KeyValueDb.Records;
 
 public sealed class RecordManager
 {
-	private static readonly int MinPageFreeSpaceForRecord = RecordHeader.Size + 8;
+	private static readonly int MinPageFreeSpaceForRecord = 8;
 
 	private readonly PageManager _pageManager;
 	private readonly FileMappedStructure<RecordManagerHeader> _header;
 
-	public RecordManager(FileStream dbFileStream, PageManager pageManager)
+	public RecordManager(FileStream dbFileStream, PageManager pageManager, bool forceInitialize)
 	{
 		_ = dbFileStream ?? throw new ArgumentNullException(nameof(dbFileStream));
 		_pageManager = pageManager ?? throw new ArgumentNullException(nameof(pageManager));
 
-		_header = new FileMappedStructure<RecordManagerHeader>(dbFileStream, 0, RecordManagerHeader.Initial);
-
-		if (dbFileStream.Length <= RecordManagerHeader.Size + PageManager.HeaderSize)
-		{
-			_header.Write();
-		}
-
-		_header.Read();
+		_header = new FileMappedStructure<RecordManagerHeader>(dbFileStream, 0, RecordManagerHeader.Initial, forceInitialize);
 	}
 
 	public RecordAddress Add(ReadOnlySpan<byte> record)
@@ -69,6 +62,9 @@ public sealed class RecordManager
 		return recordsPage.GetRecord(recordAddress.RecordIndex);
 	}
 
+	public MutableRecord GetMutable(RecordAddress recordAddress) =>
+		new(_pageManager.GetAllocatedPage(recordAddress.PageIndex), recordAddress.RecordIndex);
+
 	public void Remove(RecordAddress recordAddress)
 	{
 		using var page = _pageManager.GetAllocatedPage(recordAddress.PageIndex);
@@ -107,5 +103,24 @@ public sealed class RecordManager
 		page.Write(recordsPageInitial.AsBytes());
 
 		return page;
+	}
+
+	public readonly struct MutableRecord : IDisposable
+	{
+		private readonly PageAccessor _page;
+		private readonly ushort _recordIndex;
+
+		public Span<byte> Record => _page.ReadMutable().AsRef<RecordsPage>().GetRecordMutable(_recordIndex);
+
+		public MutableRecord(PageAccessor page, ushort recordIndex)
+		{
+			_page = page;
+			_recordIndex = recordIndex;
+		}
+
+		public void Dispose()
+		{
+			_page.Dispose();
+		}
 	}
 }

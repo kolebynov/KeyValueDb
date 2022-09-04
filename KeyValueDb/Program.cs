@@ -22,12 +22,23 @@ Console.WriteLine($"Strings allocated: {timer.Elapsed}");
 
 using var db = new Database("test_new_paging2.db");
 var addr1 = db.RecordManager.Add(largeString);
+var addr4 = db.RecordManager.Add(largeString);
+var addr5 = db.RecordManager.Add(largeString);
+var addr6 = db.RecordManager.Add(largeString);
+var addr7 = db.RecordManager.Add(largeString);
 var addr2 = db.RecordManager.Add(veryLargeString);
 var addr3 = db.RecordManager.Add(veryLargeString);
 var val2 = db.RecordManager.Get(addr2);
+db.RecordManager.Get(addr4);
+db.RecordManager.Get(addr5);
+db.RecordManager.Get(addr6);
 db.RecordManager.Remove(addr1);
 db.RecordManager.Remove(addr2);
 db.RecordManager.Remove(addr3);
+db.RecordManager.Remove(addr7);
+db.RecordManager.Remove(addr5);
+db.RecordManager.Remove(addr6);
+
 db.Set("key1", smallString);
 db.Set("key2", mediumString);
 db.Set("key3", largeString);

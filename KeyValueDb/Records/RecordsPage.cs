@@ -27,10 +27,17 @@ public unsafe struct RecordsPage
 		CheckRecordIndex(recordIndex);
 
 		var prevRecordEndOffset = GetPrevRecordEndOffset(recordIndex);
-		var spanReader = new SpanReader<byte>(ReadOnlyPayload[prevRecordEndOffset..]);
-		ref readonly var header = ref spanReader.Read(RecordHeader.Size).AsRef<RecordHeader>();
 
-		return spanReader.Read(header.DataSize);
+		return ReadOnlyPayload[prevRecordEndOffset.._header.RecordEndOffsets[recordIndex]];
+	}
+
+	public Span<byte> GetRecordMutable(ushort recordIndex)
+	{
+		CheckRecordIndex(recordIndex);
+
+		var prevRecordEndOffset = GetPrevRecordEndOffset(recordIndex);
+
+		return Payload[prevRecordEndOffset.._header.RecordEndOffsets[recordIndex]];
 	}
 
 	public ushort? AddRecord(ReadOnlySpan<byte> recordData)
@@ -71,10 +78,7 @@ public unsafe struct RecordsPage
 
 		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + recordSize);
 
-		var spanWriter = new SpanWriter<byte>(Payload[beginRecordOffset..]);
-		var recordHeader = new RecordHeader(recordSize);
-		spanWriter.Write(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref recordHeader, 1)));
-		spanWriter.Write(recordData);
+		recordData.CopyTo(Payload[beginRecordOffset..]);
 
 		return freeOffsetIndex;
 	}
@@ -86,14 +90,14 @@ public unsafe struct RecordsPage
 		var offsets = _header.RecordEndOffsets;
 		var recordLength = (ushort)(offsets[index] - GetPrevRecordEndOffset(index));
 
-		ShiftRecords((ushort)(index + 1), (short)-recordLength);
+		if (index != _header.LastFilledOffsetIndex)
+		{
+			ShiftRecords((ushort)(index + 1), (short)-recordLength);
+		}
 
 		offsets[index] = InvalidRecordEndOffset;
 		_header.NextFreeOffsetIndex = index < _header.NextFreeOffsetIndex ? index : _header.NextFreeOffsetIndex;
-		if (index == _header.LastFilledOffsetIndex)
-		{
-			_header.LastFilledOffsetIndex = GetPrevRecordEndOffsetIndex(index);
-		}
+		_header.LastFilledOffsetIndex = index == _header.LastFilledOffsetIndex ? GetPrevRecordEndOffsetIndex(index) : _header.LastFilledOffsetIndex;
 	}
 
 	private Span<byte> Payload => MemoryMarshal.CreateSpan(ref _payload[0], PagePayload);

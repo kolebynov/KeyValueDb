@@ -11,21 +11,30 @@ public class FileMappedStructure<T>
 
 	public ref readonly T ReadOnlyRef => ref _structure;
 
-	public FileMappedStructure(FileStream fileStream, long filePosition, T structure)
+	public FileMappedStructure(FileStream fileStream, long filePosition, T initial, bool useInitial)
 	{
 		_fileStream = fileStream;
 		_filePosition = filePosition;
-		_structure = structure;
+		_structure = initial;
+
+		if (useInitial)
+		{
+			Write();
+		}
+		else
+		{
+			Read();
+		}
 	}
 
 	public MutableRef GetMutableRef() => new(this);
 
-	public void Read()
+	private void Read()
 	{
 		_fileStream.ReadStructure(_filePosition, ref _structure);
 	}
 
-	public void Write()
+	private void Write()
 	{
 		_fileStream.WriteStructure(_filePosition, in _structure);
 	}

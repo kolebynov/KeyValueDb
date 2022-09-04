@@ -19,6 +19,7 @@
               Description="An element within a C# code file is out of order within regard to access level, in relation to other elements in the code."/>
         <Rule Id="SA1204" Action="None"
               Description="A static element is positioned beneath an instance element of the same type."/>
+        <Rule Id="SA1300" Action="None" Description="Element should begin with an uppercase letter"/>
         <Rule Id="SA1309" Action="None" Description="Field Names Must Not Begin With Underscore"/>
         <Rule Id="SA1633" Action="None" Description="A C# code file is missing a standard file header."/>
         <Rule Id="SA1652" Action="None"

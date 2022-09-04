@@ -16,39 +16,41 @@ public sealed class Database : IDisposable
 	{
 		_dbFileStream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 0,
 			FileOptions.Asynchronous | FileOptions.RandomAccess);
-		_recordManager = new RecordManager(_dbFileStream, new PageManager(_dbFileStream, RecordManagerHeader.Size));
+		var forceInitialize = _dbFileStream.Length == 0;
+		_recordManager = new RecordManager(_dbFileStream, new PageManager(_dbFileStream, RecordManagerHeader.Size, forceInitialize),
+			forceInitialize);
 	}
 
 	public byte[]? Get(string key)
 	{
-		var findResult = Find(GetKeyBytes(key));
-		if (findResult == null)
+		var findRecordAddress = Find(GetKeyBytes(key));
+		if (findRecordAddress == null)
 		{
 			return null;
 		}
 
-		var (recordHeader, recordAddress) = findResult.Value;
-		var valueArray = new byte[recordHeader.DataSize];
-		_recordManager.Get(recordAddress).CopyTo(valueArray);
+		var record = _recordManager.Get(findRecordAddress.Value);
+		var valueArray = new byte[record.Length];
+		record.CopyTo(valueArray);
 
 		return valueArray;
 	}
 
 	public bool TryGet(string key, Span<byte> buffer)
 	{
-		var findResult = Find(GetKeyBytes(key));
-		if (findResult == null)
+		var findRecordAddress = Find(GetKeyBytes(key));
+		if (findRecordAddress == null)
 		{
 			return false;
 		}
 
-		var (recordHeader, recordAddress) = findResult.Value;
-		if (buffer.Length < recordHeader.DataSize)
+		var record = _recordManager.Get(findRecordAddress.Value);
+		if (buffer.Length < record.Length)
 		{
 			throw new ArgumentException(string.Empty, nameof(buffer));
 		}
 
-		_recordManager.Get(recordAddress).CopyTo(buffer);
+		record.CopyTo(buffer);
 
 		return true;
 	}
@@ -66,7 +68,6 @@ public sealed class Database : IDisposable
 		var findResult = Find(keyBytes);
 		if (findResult != null)
 		{
-			var (oldHeader, recordAddress) = findResult.Value;
 			return;
 		}
 
@@ -85,8 +86,7 @@ public sealed class Database : IDisposable
 			return false;
 		}
 
-		var (_, address) = findResult.Value;
-		_recordManager.Remove(address);
+		_recordManager.Remove(findResult.Value);
 
 		return true;
 	}
@@ -96,7 +96,7 @@ public sealed class Database : IDisposable
 		_dbFileStream.Dispose();
 	}
 
-	private (RecordHeader Header, RecordAddress RecordAddress)? Find(ReadOnlySpan<byte> key)
+	private RecordAddress? Find(ReadOnlySpan<byte> key)
 	{
 		return null;
 	}

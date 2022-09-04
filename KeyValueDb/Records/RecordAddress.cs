@@ -3,16 +3,16 @@ using KeyValueDb.Paging;
 
 namespace KeyValueDb.Records;
 
-[StructLayout(LayoutKind.Sequential, Pack = 2)]
+[StructLayout(LayoutKind.Sequential, Pack = 2, Size = Size)]
 public readonly struct RecordAddress : IEquatable<RecordAddress>
 {
-	public const ushort InvalidRecordIndex = ushort.MaxValue;
+	public const int Size = 6;
 
 	public PageIndex PageIndex { get; }
 
 	public ushort RecordIndex { get; }
 
-	public static RecordAddress Invalid { get; } = new(PageIndex.Invalid, InvalidRecordIndex);
+	public static RecordAddress Invalid { get; } = new(PageIndex.Invalid, ushort.MaxValue);
 
 	public RecordAddress(PageIndex pageIndex, ushort recordIndex)
 	{

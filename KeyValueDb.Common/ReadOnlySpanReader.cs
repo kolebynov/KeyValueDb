@@ -1,17 +1,17 @@
 ﻿namespace KeyValueDb.Common;
 
-public ref struct SpanReader<T>
+public ref struct ReadOnlySpanReader<T>
 {
-	private readonly Span<T> _span;
+	private readonly ReadOnlySpan<T> _span;
 	private int _currentIndex;
 
-	public SpanReader(Span<T> span)
+	public ReadOnlySpanReader(ReadOnlySpan<T> span)
 	{
 		_span = span;
 		_currentIndex = 0;
 	}
 
-	public Span<T> Read(int length)
+	public ReadOnlySpan<T> Read(int length)
 	{
 		if (_currentIndex + length > _span.Length)
 		{

@@ -11,22 +11,11 @@ public sealed class PageManager
 	private readonly Dictionary<PageIndex, Page> _cachedPages = new();
 	private FileMappedStructure<PageManagerHeader> _header;
 
-	public static int HeaderSize => Marshal.SizeOf<PageManagerHeader>();
-
-	public PageManager(FileStream dbFileStream, long offset)
+	public PageManager(FileStream dbFileStream, long offset, bool forceInitialize)
 	{
 		_dbFileStream = dbFileStream ?? throw new ArgumentNullException(nameof(dbFileStream));
 		_firstPageOffset = offset + Marshal.SizeOf<PageManagerHeader>();
-		_header = new FileMappedStructure<PageManagerHeader>(dbFileStream, offset, PageManagerHeader.Initial);
-
-		if (_dbFileStream.Length <= offset)
-		{
-			_header.Write();
-		}
-		else
-		{
-			_header.Read();
-		}
+		_header = new FileMappedStructure<PageManagerHeader>(dbFileStream, offset, PageManagerHeader.Initial, forceInitialize);
 	}
 
 	public PageAccessor AllocatePage()

@@ -20,9 +20,16 @@ public sealed class PageManager
 
 	public PageAccessor AllocatePage()
 	{
-		var pageIndex = _header.ReadOnlyRef.FreePagesStack.Count > 0
-			? _header.ReadOnlyRef.FreePagesStack.Pop()
-			: _header.ReadOnlyRef.LastAllocatedPage.IsInvalid ? 0 : _header.ReadOnlyRef.LastAllocatedPage + 1;
+		PageIndex pageIndex;
+		if (_header.ReadOnlyRef.FreePagesStack.Count > 0)
+		{
+			using var headerRef = _header.GetMutableRef();
+			pageIndex = headerRef.Ref.FreePagesStack.Pop();
+		}
+		else
+		{
+			pageIndex = _header.ReadOnlyRef.LastAllocatedPage.IsInvalid ? 0 : _header.ReadOnlyRef.LastAllocatedPage + 1;
+		}
 
 		if (pageIndex > _header.ReadOnlyRef.LastAllocatedPage || _header.ReadOnlyRef.LastAllocatedPage.IsInvalid)
 		{

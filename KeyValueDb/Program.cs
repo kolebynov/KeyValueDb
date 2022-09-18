@@ -17,50 +17,39 @@ var largeString = GetString(200);
 var veryLargeString = GetString(2000);
 
 var strings = new[] { smallString, mediumString, largeString, smallString, mediumString };
+var buffer = new byte[200];
 
 Console.WriteLine($"Strings allocated: {timer.Elapsed}");
 
-using var db = new Database("test_new_paging2.db");
-var addr1 = db.RecordManager.Add(largeString);
-var addr4 = db.RecordManager.Add(largeString);
-var addr5 = db.RecordManager.Add(largeString);
-var addr6 = db.RecordManager.Add(largeString);
-var addr7 = db.RecordManager.Add(largeString);
-var addr2 = db.RecordManager.Add(veryLargeString);
-var addr3 = db.RecordManager.Add(veryLargeString);
-var val2 = db.RecordManager.Get(addr2);
-db.RecordManager.Get(addr4);
-db.RecordManager.Get(addr5);
-db.RecordManager.Get(addr6);
-db.RecordManager.Remove(addr1);
-db.RecordManager.Remove(addr2);
-db.RecordManager.Remove(addr3);
-db.RecordManager.Remove(addr7);
-db.RecordManager.Remove(addr5);
-db.RecordManager.Remove(addr6);
+using var db = new Database("test_new_paging4.db");
 
 db.Set("key1", smallString);
 db.Set("key2", mediumString);
 db.Set("key3", largeString);
-var buffer = new byte[200];
 
 Console.WriteLine($"Strings stored: {timer.Elapsed}");
-var iterations = 20_000_000;
 
-for (var i = 0; i < iterations; i++)
+// var iterations = 10_000_000;
+
+// for (var i = 0; i < iterations; i++)
+// {
+// 	db.TryGet("key1", buffer);
+// 	db.TryGet("key2", buffer);
+// 	db.TryGet("key3", buffer);
+// }
+
+var recordCount = 100_000;
+for (var i = 0; i < recordCount; i++)
 {
-	db.TryGet("key1", buffer);
-	db.TryGet("key2", buffer);
-	db.TryGet("key3", buffer);
+	if (i % 5000 == 0)
+	{
+		Console.WriteLine($"{i} records added");
+	}
+
+	db.Set($"{i}_key_{i}", strings[i % 5]);
 }
 
-Console.WriteLine($"Strings read: {timer.Elapsed}, iterations: {iterations}");
-Console.WriteLine("Result strings:");
-
-foreach (var s in new[] { "key1", "key2", "key3" })
-{
-	Console.WriteLine(Encoding.ASCII.GetString(db.Get(s)!));
-}
+Console.WriteLine($"Strings stored: {timer.Elapsed}, record count: {recordCount}");
 
 static byte[] GetString(int length) =>
 	Encoding.ASCII.GetBytes(string.Join(string.Empty, Enumerable.Range(0, length).Select(x => (x % 10).ToString(CultureInfo.InvariantCulture))));

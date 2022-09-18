@@ -12,6 +12,8 @@ public readonly struct RecordAddress : IEquatable<RecordAddress>
 
 	public ushort RecordIndex { get; }
 
+	public bool IsInvalid => this == Invalid;
+
 	public static RecordAddress Invalid { get; } = new(PageIndex.Invalid, ushort.MaxValue);
 
 	public RecordAddress(PageIndex pageIndex, ushort recordIndex)

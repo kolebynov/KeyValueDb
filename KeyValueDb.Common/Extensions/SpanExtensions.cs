@@ -16,4 +16,12 @@ public static class SpanExtensions
 	public static ref T AsRef<T>(this Span<byte> span) where T : struct => ref MemoryMarshal.AsRef<T>(span);
 
 	public static ref readonly T AsRef<T>(this ReadOnlySpan<byte> span) where T : struct => ref MemoryMarshal.AsRef<T>(span);
+
+	public static Span<TTo> Cast<TFrom, TTo>(this Span<TFrom> span)
+		where TFrom : struct
+		where TTo : struct => MemoryMarshal.Cast<TFrom, TTo>(span);
+
+	public static ReadOnlySpan<TTo> Cast<TFrom, TTo>(this ReadOnlySpan<TFrom> span)
+		where TFrom : struct
+		where TTo : struct => MemoryMarshal.Cast<TFrom, TTo>(span);
 }

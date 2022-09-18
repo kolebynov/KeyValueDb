@@ -6,20 +6,22 @@ namespace KeyValueDb.Records;
 
 public sealed class RecordManager
 {
+	public const int MaxRecordSize = RecordsPage.PagePayload;
+
 	private static readonly int MinPageFreeSpaceForRecord = 8;
 
 	private readonly PageManager _pageManager;
 	private readonly FileMappedStructure<RecordManagerHeader> _header;
 
-	public RecordManager(FileStream dbFileStream, PageManager pageManager, bool forceInitialize)
+	public RecordManager(FileStream dbFileStream, PageManager pageManager, long offset, bool forceInitialize)
 	{
 		_ = dbFileStream ?? throw new ArgumentNullException(nameof(dbFileStream));
 		_pageManager = pageManager ?? throw new ArgumentNullException(nameof(pageManager));
 
-		_header = new FileMappedStructure<RecordManagerHeader>(dbFileStream, 0, RecordManagerHeader.Initial, forceInitialize);
+		_header = new FileMappedStructure<RecordManagerHeader>(dbFileStream, offset, RecordManagerHeader.Initial, forceInitialize);
 	}
 
-	public RecordAddress Add(ReadOnlySpan<byte> record)
+	public Record Create(int size)
 	{
 		PageAccessor page;
 		using var headerRef = _header.GetMutableRef();
@@ -37,32 +39,33 @@ public sealed class RecordManager
 		while (true)
 		{
 			ref var recordsPage = ref page.ReadMutable().AsRef<RecordsPage>();
-			recordIndex = recordsPage.AddRecord(record);
+			recordIndex = recordsPage.CreateRecord(size);
 			if (recordIndex != null)
 			{
 				if (page.PageIndex == headerRef.Ref.FirstPageWithFreeSpace && recordsPage.FreeSpace < MinPageFreeSpaceForRecord)
 				{
-					headerRef.Ref.FirstPageWithFreeSpace = GetNextPageWithFreeSpace(headerRef.Ref.FirstPageWithFreeSpace).PageIndex;
+					using var nextPageWithFreeSpace = GetNextPageWithFreeSpace(headerRef.Ref.FirstPageWithFreeSpace);
+					headerRef.Ref.FirstPageWithFreeSpace = nextPageWithFreeSpace.PageIndex;
 				}
 
 				break;
 			}
 
-			page = GetNextPageWithFreeSpace(page.PageIndex);
+			page.AssignNewDisposableToVariable(GetNextPageWithFreeSpace(page.PageIndex));
 		}
 
-		page.Dispose();
-
-		return new RecordAddress(page.PageIndex, recordIndex.Value);
+		return new Record(page, recordIndex.Value);
 	}
 
-	public ReadOnlySpan<byte> Get(RecordAddress recordAddress)
+	public RecordAddress CreateAndSaveData(ReadOnlySpan<byte> recordData)
 	{
-		ref readonly var recordsPage = ref _pageManager.GetAllocatedPage(recordAddress.PageIndex).Read().AsRef<RecordsPage>();
-		return recordsPage.GetRecord(recordAddress.RecordIndex);
+		using var record = Create(recordData.Length);
+		recordData.CopyTo(record.ReadMutable());
+
+		return record.Address;
 	}
 
-	public MutableRecord GetMutable(RecordAddress recordAddress) =>
+	public Record Get(RecordAddress recordAddress) =>
 		new(_pageManager.GetAllocatedPage(recordAddress.PageIndex), recordAddress.RecordIndex);
 
 	public void Remove(RecordAddress recordAddress)
@@ -105,12 +108,32 @@ public sealed class RecordManager
 		return page;
 	}
 
+	public readonly struct Record : IDisposable
+	{
+		private readonly PageAccessor _page;
+		private readonly ushort _recordIndex;
+
+		public RecordAddress Address => new(_page.PageIndex, _recordIndex);
+
+		public Record(PageAccessor page, ushort recordIndex)
+		{
+			_page = page;
+			_recordIndex = recordIndex;
+		}
+
+		public ReadOnlySpan<byte> Read() => _page.Read().AsRef<RecordsPage>().GetRecord(_recordIndex);
+
+		public Span<byte> ReadMutable() => _page.ReadMutable().AsRef<RecordsPage>().GetRecordMutable(_recordIndex);
+
+		public void Dispose() => _page.Dispose();
+	}
+
 	public readonly struct MutableRecord : IDisposable
 	{
 		private readonly PageAccessor _page;
 		private readonly ushort _recordIndex;
 
-		public Span<byte> Record => _page.ReadMutable().AsRef<RecordsPage>().GetRecordMutable(_recordIndex);
+		public Span<byte> Data => _page.ReadMutable().AsRef<RecordsPage>().GetRecordMutable(_recordIndex);
 
 		public MutableRecord(PageAccessor page, ushort recordIndex)
 		{
@@ -118,9 +141,6 @@ public sealed class RecordManager
 			_recordIndex = recordIndex;
 		}
 
-		public void Dispose()
-		{
-			_page.Dispose();
-		}
+		public void Dispose() => _page.Dispose();
 	}
 }

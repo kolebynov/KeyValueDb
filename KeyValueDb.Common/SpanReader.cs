@@ -2,16 +2,16 @@
 
 public ref struct SpanReader<T>
 {
-	private readonly Span<T> _span;
+	private readonly ReadOnlySpan<T> _span;
 	private int _currentIndex;
 
-	public SpanReader(Span<T> span)
+	public SpanReader(ReadOnlySpan<T> span)
 	{
 		_span = span;
 		_currentIndex = 0;
 	}
 
-	public Span<T> Read(int length)
+	public ReadOnlySpan<T> Read(int length)
 	{
 		if (_currentIndex + length > _span.Length)
 		{
@@ -20,6 +20,14 @@ public ref struct SpanReader<T>
 
 		var result = _span.Slice(_currentIndex, length);
 		_currentIndex += length;
+
+		return result;
+	}
+
+	public ReadOnlySpan<T> ReadToEnd()
+	{
+		var result = _span[_currentIndex..];
+		_currentIndex = _span.Length;
 
 		return result;
 	}

@@ -1,13 +1,11 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using KeyValueDb.Common;
-using KeyValueDb.Common.Extensions;
 using KeyValueDb.Paging;
 
 namespace KeyValueDb.Records;
 
 [StructLayout(LayoutKind.Sequential, Size = Constants.PageSize)]
-public unsafe struct RecordsPage
+internal unsafe struct RecordsPage
 {
 	public const ushort InvalidRecordEndOffset = ushort.MaxValue;
 	public const ushort InvalidOffsetIndex = ushort.MaxValue;
@@ -40,10 +38,9 @@ public unsafe struct RecordsPage
 		return Payload[prevRecordEndOffset.._header.RecordEndOffsets[recordIndex]];
 	}
 
-	public ushort? AddRecord(ReadOnlySpan<byte> recordData)
+	public ushort? CreateRecord(int recordSize)
 	{
 		var recordEndOffsets = _header.RecordEndOffsets;
-		var recordSize = recordData.Length;
 
 		if (_header.NextFreeOffsetIndex >= recordEndOffsets.Length || FreeSpace < recordSize)
 		{
@@ -77,8 +74,6 @@ public unsafe struct RecordsPage
 		}
 
 		recordEndOffsets[freeOffsetIndex] = (ushort)(beginRecordOffset + recordSize);
-
-		recordData.CopyTo(Payload[beginRecordOffset..]);
 
 		return freeOffsetIndex;
 	}

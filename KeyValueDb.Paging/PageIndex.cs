@@ -5,6 +5,8 @@ namespace KeyValueDb.Paging;
 [StructLayout(LayoutKind.Sequential)]
 public readonly struct PageIndex : IEquatable<PageIndex>
 {
+	public const int Size = 4;
+
 	public readonly uint Value;
 
 	public static PageIndex Invalid { get; } = new(uint.MaxValue);

@@ -1,10 +1,10 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb", "KeyValueDb\KeyValueDb.csproj", "{18793915-978D-46B4-93DB-B3E15ACF352A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb", "src\KeyValueDb\KeyValueDb.csproj", "{18793915-978D-46B4-93DB-B3E15ACF352A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.Paging", "KeyValueDb.Paging\KeyValueDb.Paging.csproj", "{037E470A-23F4-4A9E-BF64-BF9CE902C198}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.FileMemory", "src\KeyValueDb.FileMemory\KeyValueDb.FileMemory.csproj", "{037E470A-23F4-4A9E-BF64-BF9CE902C198}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.Common", "KeyValueDb.Common\KeyValueDb.Common.csproj", "{FBBF07EF-38A3-4352-8F48-14E0FD108EAD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.Common", "src\KeyValueDb.Common\KeyValueDb.Common.csproj", "{FBBF07EF-38A3-4352-8F48-14E0FD108EAD}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionItems", "SolutionItems", "{E54FCFEA-DDC6-41AB-A917-B2C1A93C1E1C}"
 	ProjectSection(SolutionItems) = preProject
@@ -14,7 +14,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionItems", "SolutionIt
 		KeyValueDb.ruleset = KeyValueDb.ruleset
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.Benchmarks", "KeyValueDb.Benchmarks\KeyValueDb.Benchmarks.csproj", "{06EB14AB-54FD-4B28-B547-09900BAC2B67}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.Benchmarks", "src\KeyValueDb.Benchmarks\KeyValueDb.Benchmarks.csproj", "{06EB14AB-54FD-4B28-B547-09900BAC2B67}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A0F29705-0F1C-4B5A-A87F-7FA47CC51879}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D30FFF43-563A-4B67-B8F1-387BD690CDE6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeyValueDb.FileMemory.UnitTests", "tests\KeyValueDb.FileMemory.UnitTests\KeyValueDb.FileMemory.UnitTests.csproj", "{86715D86-E2CD-429F-9A72-915A9101B69D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,5 +44,16 @@ Global
 		{06EB14AB-54FD-4B28-B547-09900BAC2B67}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{06EB14AB-54FD-4B28-B547-09900BAC2B67}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{06EB14AB-54FD-4B28-B547-09900BAC2B67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86715D86-E2CD-429F-9A72-915A9101B69D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86715D86-E2CD-429F-9A72-915A9101B69D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86715D86-E2CD-429F-9A72-915A9101B69D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86715D86-E2CD-429F-9A72-915A9101B69D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{18793915-978D-46B4-93DB-B3E15ACF352A} = {A0F29705-0F1C-4B5A-A87F-7FA47CC51879}
+		{06EB14AB-54FD-4B28-B547-09900BAC2B67} = {A0F29705-0F1C-4B5A-A87F-7FA47CC51879}
+		{FBBF07EF-38A3-4352-8F48-14E0FD108EAD} = {A0F29705-0F1C-4B5A-A87F-7FA47CC51879}
+		{037E470A-23F4-4A9E-BF64-BF9CE902C198} = {A0F29705-0F1C-4B5A-A87F-7FA47CC51879}
+		{86715D86-E2CD-429F-9A72-915A9101B69D} = {D30FFF43-563A-4B67-B8F1-387BD690CDE6}
 	EndGlobalSection
 EndGlobal

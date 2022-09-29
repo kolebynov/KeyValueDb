@@ -2,10 +2,11 @@
     <PropertyGroup>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <CodeAnalysisRuleSet>..\KeyValueDb.ruleset</CodeAnalysisRuleSet>
+        <CodeAnalysisRuleSet>..\..\KeyValueDb.ruleset</CodeAnalysisRuleSet>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <AnalysisMode>AllEnabledByDefault</AnalysisMode>
         <AnalysisLevel>latest</AnalysisLevel>
+        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

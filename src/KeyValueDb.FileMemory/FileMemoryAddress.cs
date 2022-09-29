@@ -8,8 +8,6 @@ public readonly struct FileMemoryAddress : IEquatable<FileMemoryAddress>
 {
 	public const int Size = 8;
 
-	public ulong Value { get; }
-
 	public bool IsInvalid => Value >= Invalid.Value;
 
 	public static FileMemoryAddress Invalid { get; } = new(PageIndex.Invalid - 1, ushort.MaxValue);
@@ -31,6 +29,8 @@ public readonly struct FileMemoryAddress : IEquatable<FileMemoryAddress>
 
 	public static bool operator !=(FileMemoryAddress left, FileMemoryAddress right) => !left.Equals(right);
 
+	internal ulong Value { get; }
+
 	internal PageIndex PageIndex => Value >> 16;
 
 	internal ushort BlockIndex => (ushort)(Value & 0x000000000000FFFF);
@@ -38,5 +38,16 @@ public readonly struct FileMemoryAddress : IEquatable<FileMemoryAddress>
 	internal FileMemoryAddress(PageIndex pageIndex, ushort blockIndex)
 	{
 		Value = (pageIndex.Value << 16) + blockIndex;
+	}
+}
+
+public readonly struct FileMemoryAddress<T>
+	where T : unmanaged
+{
+	internal readonly FileMemoryAddress InnerAddress;
+
+	internal FileMemoryAddress(FileMemoryAddress innerAddress)
+	{
+		InnerAddress = innerAddress;
 	}
 }

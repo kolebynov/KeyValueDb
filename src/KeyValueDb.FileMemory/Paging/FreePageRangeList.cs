@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 
@@ -10,7 +11,7 @@ internal sealed class FreePageRangeList
 
 	private readonly FileMappedStructure<FixedList<FileData, PageRange>> _fileData;
 
-	public int FileDataSize => Marshal.SizeOf<FixedList<FileData, PageRange>>();
+	public int FileDataSize => Unsafe.SizeOf<FixedList<FileData, PageRange>>();
 
 	public FreePageRangeList(FileStream fileStream, long offset, bool forceInitialize)
 	{

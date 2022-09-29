@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace KeyValueDb.Common.Extensions;
 
@@ -8,7 +9,7 @@ public static class FileStreamExtensions
 		where T : unmanaged
 	{
 		fileStream.Position = position;
-		if (fileStream.Read(structure.AsBytes()) != Marshal.SizeOf<T>())
+		if (fileStream.Read(structure.AsBytes()) != Unsafe.SizeOf<T>())
 		{
 			throw new InvalidOperationException();
 		}

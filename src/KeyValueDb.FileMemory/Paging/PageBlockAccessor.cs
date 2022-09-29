@@ -17,7 +17,7 @@ internal readonly struct PageBlockAccessor : IDisposable
 	{
 		if (_pageBlock != null)
 		{
-			_pageManager.CommitPageBlock(_pageBlock, PageIndex);
+			_pageManager.CommitPageBlock(_pageBlock);
 		}
 	}
 

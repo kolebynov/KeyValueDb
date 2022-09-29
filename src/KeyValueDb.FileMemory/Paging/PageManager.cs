@@ -93,14 +93,14 @@ internal sealed class PageManager
 		_freePageRangeList.Add(new PageRange(pageIndex, pageCount));
 	}
 
-	public void CommitPageBlock(PageBlock pageBlock, PageIndex pageIndex)
+	public void CommitPageBlock(PageBlock pageBlock)
 	{
 		if (!pageBlock.HasChanges)
 		{
 			return;
 		}
 
-		_dbFileStream.Position = GetPageFilePosition(pageIndex);
+		_dbFileStream.Position = GetPageFilePosition(pageBlock.PageIndex);
 		_dbFileStream.Write(pageBlock.Data);
 		pageBlock.HasChanges = false;
 	}

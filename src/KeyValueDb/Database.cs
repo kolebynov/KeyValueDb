@@ -13,8 +13,7 @@ public sealed class Database : IDisposable
 
 	public Database(string path)
 	{
-		_dbFileStream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 0,
-			FileOptions.Asynchronous | FileOptions.RandomAccess);
+		_dbFileStream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 0, FileOptions.RandomAccess);
 		var forceInitialize = _dbFileStream.Length == 0;
 		_index = new HashMapIndex(
 			new FileMemoryAllocatorFactory().Create(_dbFileStream, HashMapIndexHeader.Size, forceInitialize),

@@ -12,8 +12,6 @@ public sealed class HashMapIndex
 	public const int MaxPagesPerBucket = 16;
 	public const int BucketCount = 128;
 
-	private static readonly FileMemoryAddress HeaderAddress = new(0, 0);
-
 	private readonly FileMemoryAllocator _fileMemoryAllocator;
 	private readonly FileMappedStructure<HashMapIndexHeader> _header;
 
@@ -49,7 +47,7 @@ public sealed class HashMapIndex
 		}
 
 		var recordDataToSave = new RecordData(key, value);
-		using var newRecord = _fileMemoryAllocator.Create(recordDataToSave.Size);
+		using var newRecord = _fileMemoryAllocator.AllocateStruct(recordDataToSave.Size);
 		recordDataToSave.SerializeToSpan(newRecord.ReadMutable());
 		resultBucket.AddRecordAddress(newRecord.Address);
 

@@ -7,10 +7,10 @@ internal struct FileMemoryAllocatorHeader
 {
 	public static readonly int Size = Marshal.SizeOf<FileMemoryAllocatorHeader>();
 
-	public PageIndex MemoryBlocksFirstPage;
+	public PageIndex AllocatedBlocksFirstPage;
 
 	public static FileMemoryAllocatorHeader Initial { get; } = new()
 	{
-		MemoryBlocksFirstPage = PageIndex.Invalid,
+		AllocatedBlocksFirstPage = PageIndex.Invalid,
 	};
 }

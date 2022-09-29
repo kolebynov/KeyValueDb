@@ -1,4 +1,6 @@
-﻿using KeyValueDb.Common;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.FileMemory.Paging;
 
@@ -6,9 +8,10 @@ namespace KeyValueDb.FileMemory;
 
 public sealed class FileMemoryAllocator
 {
-	public const int MaxRecordSize = RecordsPage.PagePayload;
+	private const int MinPageFreeSpaceForRecord = 8;
 
-	private static readonly int MinPageFreeSpaceForRecord = 8;
+	private static readonly AllocatedMemoryListHeader DefaultMemoryListHeader = AllocatedMemoryListHeader.CreateInitial(61);
+	private static readonly int MaxRecordSizeForDefaultPageBlock = DefaultMemoryListHeader.CalculatePayloadSize(Constants.PageSize);
 
 	private readonly PageManager _pageManager;
 	private readonly FileMappedStructure<FileMemoryAllocatorHeader> _header;
@@ -19,39 +22,36 @@ public sealed class FileMemoryAllocator
 		_pageManager = pageManager ?? throw new ArgumentNullException(nameof(pageManager));
 
 		_header = new FileMappedStructure<FileMemoryAllocatorHeader>(fileStream, offset, FileMemoryAllocatorHeader.Initial, forceInitialize);
-		if (_header.ReadOnlyRef.MemoryBlocksFirstPage.IsInvalid)
+		if (_header.ReadOnlyRef.AllocatedBlocksFirstPage.IsInvalid)
 		{
 			using var header = _header.GetMutableRef();
-			using var page = pageManager.AllocatePageBlock(1);
-			header.Ref.MemoryBlocksFirstPage = page.PageIndex;
+			using var page = AllocateRecordsPage();
+			header.Ref.AllocatedBlocksFirstPage = page.PageIndex;
 		}
 	}
 
-	public Record Create(int size)
+	public AllocatedMemory<T> AllocateStruct<T>(T initial = default)
+		where T : unmanaged
 	{
-		PageBlockAccessor pageBlock;
+		return new AllocatedMemory<T>(Allocate(Unsafe.SizeOf<T>(), initial.AsBytes()));
+	}
+
+	public AllocatedMemory Allocate(int size, ReadOnlySpan<byte> initialValue = default)
+	{
 		using var headerRef = _header.GetMutableRef();
-		if (!headerRef.Ref.MemoryBlocksFirstPage.IsInvalid)
-		{
-			pageBlock = _pageManager.GetAllocatedPageBlock(headerRef.Ref.MemoryBlocksFirstPage);
-		}
-		else
-		{
-			pageBlock = AllocateRecordsPage();
-			headerRef.Ref.MemoryBlocksFirstPage = pageBlock.PageIndex;
-		}
+		var pageBlock = _pageManager.GetAllocatedPageBlock(headerRef.Ref.AllocatedBlocksFirstPage);
 
 		ushort? recordIndex;
 		while (true)
 		{
-			ref var recordsPage = ref pageBlock.ReadMutable().AsRef<RecordsPage>();
-			recordIndex = recordsPage.CreateRecord(size);
+			var allocatedMemoryList = new AllocatedMemoryList(pageBlock.ReadMutable());
+			recordIndex = allocatedMemoryList.AllocateBlock(size, initialValue);
 			if (recordIndex != null)
 			{
-				if (pageBlock.PageIndex == headerRef.Ref.MemoryBlocksFirstPage && recordsPage.FreeSpace < MinPageFreeSpaceForRecord)
+				if (pageBlock.PageIndex == headerRef.Ref.AllocatedBlocksFirstPage && allocatedMemoryList.FreeSpace < MinPageFreeSpaceForRecord)
 				{
-					using var nextPageWithFreeSpace = GetNextPageWithFreeSpace(headerRef.Ref.MemoryBlocksFirstPage);
-					headerRef.Ref.MemoryBlocksFirstPage = nextPageWithFreeSpace.PageIndex;
+					using var nextPageWithFreeSpace = GetNextPageWithFreeSpace(headerRef.Ref.AllocatedBlocksFirstPage);
+					headerRef.Ref.AllocatedBlocksFirstPage = nextPageWithFreeSpace.PageIndex;
 				}
 
 				break;
@@ -60,57 +60,55 @@ public sealed class FileMemoryAllocator
 			pageBlock.AssignNewDisposableToVariable(GetNextPageWithFreeSpace(pageBlock.PageIndex));
 		}
 
-		return new Record(pageBlock, recordIndex.Value);
+		return new AllocatedMemory(pageBlock, recordIndex.Value);
 	}
 
-	public FileMemoryAddress CreateAndSaveData(ReadOnlySpan<byte> recordData)
-	{
-		using var record = Create(recordData.Length);
-		recordData.CopyTo(record.ReadMutable());
-
-		return record.Address;
-	}
-
-	public Record Get(FileMemoryAddress fileMemoryAddress) =>
+	public AllocatedMemory Get(FileMemoryAddress fileMemoryAddress) =>
 		new(_pageManager.GetAllocatedPageBlock(fileMemoryAddress.PageIndex), fileMemoryAddress.BlockIndex);
+
+	public AllocatedMemory<T> Get<T>(FileMemoryAddress<T> fileMemoryAddress)
+		where T : unmanaged
+	{
+		return new AllocatedMemory<T>(Get(fileMemoryAddress.InnerAddress));
+	}
 
 	public void Remove(FileMemoryAddress fileMemoryAddress)
 	{
 		using var page = _pageManager.GetAllocatedPageBlock(fileMemoryAddress.PageIndex);
-		ref var recordsPage = ref page.ReadMutable().AsRef<RecordsPage>();
-		recordsPage.RemoveRecord(fileMemoryAddress.BlockIndex);
+		var allocatedMemoryList = new AllocatedMemoryList(page.ReadMutable());
+		allocatedMemoryList.RemoveBlock(fileMemoryAddress.BlockIndex);
 
-		if (page.PageIndex < _header.ReadOnlyRef.MemoryBlocksFirstPage)
+		if (page.PageIndex < _header.ReadOnlyRef.AllocatedBlocksFirstPage)
 		{
 			using var headerRef = _header.GetMutableRef();
-			headerRef.Ref.MemoryBlocksFirstPage = page.PageIndex;
+			headerRef.Ref.AllocatedBlocksFirstPage = page.PageIndex;
 		}
 	}
 
-	private PageBlockAccessor GetNextPageWithFreeSpace(PageAddress startPageAddress)
+	private PageBlockAccessor GetNextPageWithFreeSpace(PageIndex startPageIndex)
 	{
 		while (true)
 		{
-			if (!_pageManager.TryGetNextAllocatedPageBlock(startPageAddress, out var page))
+			if (!_pageManager.TryGetNextAllocatedPageBlock(startPageIndex, out var pageBlock))
 			{
-				page = AllocateRecordsPage();
+				pageBlock = AllocateRecordsPage();
 			}
 
-			if (page.Read().AsRef<RecordsPage>().FreeSpace >= MinPageFreeSpaceForRecord)
+			var pageBlockData = pageBlock.Read();
+			if (new AllocatedMemoryList(MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(pageBlockData), pageBlockData.Length)).FreeSpace >= MinPageFreeSpaceForRecord)
 			{
-				return page;
+				return pageBlock;
 			}
 
-			startPageAddress = page.PageIndex;
+			startPageIndex = pageBlock.PageIndex;
 		}
 	}
 
 	private PageBlockAccessor AllocateRecordsPage()
 	{
-		var page = _pageManager.AllocatePageBlock(TODO);
-		var recordsPageInitial = RecordsPage.Initial;
-		page.Write(recordsPageInitial.AsBytes());
+		var pageBlock = _pageManager.AllocatePageBlock(1);
+		pageBlock.Write(SpanExtensions.AsReadOnlyBytes(in DefaultMemoryListHeader));
 
-		return page;
+		return pageBlock;
 	}
 }

@@ -19,38 +19,38 @@ public unsafe struct HashMapIndexHeader
 	public readonly ReadOnlySpan<FileMemoryAddress<HashMapBucket>> GetBucketAddresses(int bucket)
 	{
 		var indexes = GetBucketAllAddresses(bucket);
-		var count = GetPageAddressCount(indexes);
+		var count = GetFirstInvalidAddressIndex(indexes);
 
 		return count > 0 ? indexes[..count] : ReadOnlySpan<FileMemoryAddress<HashMapBucket>>.Empty;
 	}
 
 	public void AddBucketAddress(int bucket, FileMemoryAddress<HashMapBucket> bucketAddress)
 	{
-		var indexes = GetBucketAllAddresses(bucket);
-		indexes[GetPageAddressCount(indexes)] = bucketAddress;
+		var addresses = GetBucketAllAddresses(bucket);
+		addresses[GetFirstInvalidAddressIndex(addresses)] = bucketAddress;
 	}
 
 	private readonly Span<FileMemoryAddress<HashMapBucket>> BucketsAddressesMutable =>
 		MemoryMarshal.CreateSpan(ref Unsafe.AsRef(in _bucketsPageIndexes[0]), BucketsPageIndexesSize).Cast<byte, FileMemoryAddress<HashMapBucket>>();
 
-	private readonly int GetPageAddressCount(ReadOnlySpan<FileMemoryAddress<HashMapBucket>> bucketAddresses)
-	{
-		var count = 0;
-		while (bucketAddresses[count] != FileMemoryAddress<HashMapBucket>.Invalid)
-		{
-			count++;
-		}
-
-		return count;
-	}
-
 	private readonly Span<FileMemoryAddress<HashMapBucket>> GetBucketAllAddresses(int bucket) =>
 		BucketsAddressesMutable.Slice(bucket * HashMapIndex.MaxPagesPerBucket, HashMapIndex.MaxPagesPerBucket);
+
+	private static int GetFirstInvalidAddressIndex(ReadOnlySpan<FileMemoryAddress<HashMapBucket>> bucketAddresses)
+	{
+		var index = 0;
+		while (bucketAddresses[index] != FileMemoryAddress.Invalid)
+		{
+			index++;
+		}
+
+		return index;
+	}
 
 	private static HashMapIndexHeader CreateInitial()
 	{
 		var header = default(HashMapIndexHeader);
-		header.BucketsAddressesMutable.Fill(FileMemoryAddress<HashMapBucket>.Invalid);
+		header.BucketsAddressesMutable.Fill(FileMemoryAddress.Invalid);
 
 		return header;
 	}

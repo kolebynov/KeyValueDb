@@ -86,7 +86,7 @@ public sealed class HashMapIndex
 
 	private FindResult Find(ReadOnlySpan<char> key)
 	{
-		var bucketIndex = (int)((uint)GetHashCode(key) % BucketCount);
+		var bucketIndex = (int)((uint)GetHash(key) % BucketCount);
 		var bucketAddresses = _header.ReadOnlyRef.GetBucketAddresses(bucketIndex);
 
 		foreach (var bucketAddress in bucketAddresses)
@@ -105,7 +105,7 @@ public sealed class HashMapIndex
 			}
 		}
 
-		return new FindResult(bucketIndex, FileMemoryAddress.Invalid, -1, FileMemoryAddress<HashMapBucket>.Invalid);
+		return new FindResult(bucketIndex, FileMemoryAddress.Invalid, -1, FileMemoryAddress.Invalid);
 	}
 
 	private AllocatedMemory<HashMapBucket> AddNewPageToBucket(int bucketIndex)
@@ -117,7 +117,7 @@ public sealed class HashMapIndex
 		return newBucket;
 	}
 
-	private static int GetHashCode(ReadOnlySpan<char> key)
+	private static int GetHash(ReadOnlySpan<char> key)
 	{
 		var seed = Marvin.DefaultSeed;
 		return Marvin.ComputeHash32(ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(key)), (uint)key.Length * 2, (uint)seed,
@@ -126,13 +126,13 @@ public sealed class HashMapIndex
 
 	private readonly struct FindResult
 	{
-		public readonly int BucketIndex;
-
 		public readonly FileMemoryAddress<HashMapBucket> BucketAddress;
+
+		public readonly FileMemoryAddress RecordAddress;
 
 		public readonly int IndexInBucket;
 
-		public readonly FileMemoryAddress RecordAddress;
+		public readonly int BucketIndex;
 
 		public bool IsFound => RecordAddress != FileMemoryAddress.Invalid;
 

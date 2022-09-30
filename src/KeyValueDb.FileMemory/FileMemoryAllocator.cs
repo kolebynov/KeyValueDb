@@ -74,7 +74,7 @@ public sealed class FileMemoryAllocator
 	public AllocatedMemory<T> Get<T>(FileMemoryAddress<T> fileMemoryAddress)
 		where T : unmanaged
 	{
-		return new AllocatedMemory<T>(Get(fileMemoryAddress.InnerAddress));
+		return new AllocatedMemory<T>(Get((FileMemoryAddress)fileMemoryAddress));
 	}
 
 	public void Remove(FileMemoryAddress fileMemoryAddress)

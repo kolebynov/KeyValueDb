@@ -8,9 +8,9 @@ public readonly struct AllocatedMemory : IDisposable
 	private readonly PageBlockAccessor _pageBlockAccessor;
 	private readonly ushort _blockIndex;
 
-	public Span<byte> DataMutable => _pageBlockAccessor.ReadMutable().AsRef<AllocatedMemoryList>().GetAllocatedBlockMutable(_blockIndex);
+	public Span<byte> DataMutable => _pageBlockAccessor.ReadMutable().AsRef<AllocatedMemoryList>().GetAllocatedMemoryMutable(_blockIndex);
 
-	public ReadOnlySpan<byte> Data => _pageBlockAccessor.Read().AsRef<AllocatedMemoryList>().GetAllocatedBlock(_blockIndex);
+	public ReadOnlySpan<byte> Data => _pageBlockAccessor.Read().AsRef<AllocatedMemoryList>().GetAllocatedMemory(_blockIndex);
 
 	public FileMemoryAddress Address => new(_pageBlockAccessor.PageIndex, _blockIndex);
 
@@ -35,7 +35,7 @@ public readonly struct AllocatedMemory<T> : IDisposable
 
 	public ref readonly T ValueRef => ref _allocatedMemory.Data.AsRef<T>();
 
-	public FileMemoryAddress<T> Address => new(_allocatedMemory.Address);
+	public FileMemoryAddress<T> Address => _allocatedMemory.Address;
 
 	public void Dispose()
 	{

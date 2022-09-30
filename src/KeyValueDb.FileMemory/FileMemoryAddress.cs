@@ -44,22 +44,24 @@ public readonly struct FileMemoryAddress : IEquatable<FileMemoryAddress>
 public readonly struct FileMemoryAddress<T> : IEquatable<FileMemoryAddress<T>>
 	where T : unmanaged
 {
-	public static FileMemoryAddress<T> Invalid { get; } = new(FileMemoryAddress.Invalid);
+	private readonly FileMemoryAddress _innerAddress;
 
-	public bool Equals(FileMemoryAddress<T> other) => InnerAddress.Equals(other.InnerAddress);
+	public bool Equals(FileMemoryAddress<T> other) => _innerAddress.Equals(other._innerAddress);
 
 	public override bool Equals(object? obj) => obj is FileMemoryAddress<T> other && Equals(other);
 
-	public override int GetHashCode() => InnerAddress.GetHashCode();
+	public override int GetHashCode() => _innerAddress.GetHashCode();
 
 	public static bool operator ==(FileMemoryAddress<T> left, FileMemoryAddress<T> right) => left.Equals(right);
 
 	public static bool operator !=(FileMemoryAddress<T> left, FileMemoryAddress<T> right) => !left.Equals(right);
 
-	internal readonly FileMemoryAddress InnerAddress;
+	public static implicit operator FileMemoryAddress<T>(FileMemoryAddress address) => new(address);
+
+	public static explicit operator FileMemoryAddress(FileMemoryAddress<T> address) => address._innerAddress;
 
 	internal FileMemoryAddress(FileMemoryAddress innerAddress)
 	{
-		InnerAddress = innerAddress;
+		_innerAddress = innerAddress;
 	}
 }

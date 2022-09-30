@@ -32,7 +32,7 @@ internal struct AllocatedMemoryList
 		_lastFilledOffsetIndex = InvalidOffsetIndex;
 	}
 
-	public readonly ReadOnlySpan<byte> GetAllocatedBlock(ushort blockIndex)
+	public readonly ReadOnlySpan<byte> GetAllocatedMemory(ushort blockIndex)
 	{
 		CheckBlockIndex(blockIndex);
 
@@ -41,7 +41,7 @@ internal struct AllocatedMemoryList
 		return Payload[prevRecordEndOffset..BlockEndOffsets[blockIndex]];
 	}
 
-	public Span<byte> GetAllocatedBlockMutable(ushort blockIndex)
+	public Span<byte> GetAllocatedMemoryMutable(ushort blockIndex)
 	{
 		CheckBlockIndex(blockIndex);
 

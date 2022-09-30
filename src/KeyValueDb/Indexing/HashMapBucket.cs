@@ -12,7 +12,7 @@ public unsafe struct HashMapBucket
 
 	public static readonly HashMapBucket Initial = CreateInitial();
 
-	private const int Size = FileMemoryAllocator.MaxRecordSizeForDefaultPageBlock;
+	private const int Size = FileMemoryAllocator.MaxAllocatedSizeForDefaultMemoryList;
 	private const int AddressesSize = Size - 4;
 
 	private int _count;

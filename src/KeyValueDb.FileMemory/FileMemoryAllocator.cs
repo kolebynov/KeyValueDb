@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.FileMemory.Paging;
@@ -7,11 +8,11 @@ namespace KeyValueDb.FileMemory;
 
 public sealed class FileMemoryAllocator
 {
-	public const int MaxRecordSizeForDefaultPageBlock = 3846;
+	public const int MaxAllocatedSizeForDefaultMemoryList = 3842;
 
 	private const int MinPageFreeSpaceForRecord = 8;
 
-	private static readonly AllocatedMemoryListHeader DefaultMemoryListHeader = AllocatedMemoryListHeader.CreateInitial(61);
+	private static readonly AllocatedMemoryList DefaultMemoryList = new(Constants.PageSize, 61);
 
 	private readonly PageManager _pageManager;
 	private readonly FileMappedStructure<FileMemoryAllocatorHeader> _header;
@@ -28,6 +29,10 @@ public sealed class FileMemoryAllocator
 			using var page = AllocateRecordsPage();
 			header.Ref.AllocatedBlocksFirstPage = page.PageIndex;
 		}
+
+		Debug.Assert(
+			DefaultMemoryList.PayloadSize == MaxAllocatedSizeForDefaultMemoryList,
+			$"Invalid {nameof(MaxAllocatedSizeForDefaultMemoryList)}");
 	}
 
 	public AllocatedMemory<T> AllocateStruct<T>(T initial = default)
@@ -44,7 +49,7 @@ public sealed class FileMemoryAllocator
 		ushort? recordIndex;
 		while (true)
 		{
-			var allocatedMemoryList = new AllocatedMemoryList(pageBlock.ReadMutable());
+			ref var allocatedMemoryList = ref pageBlock.ReadMutable().AsRef<AllocatedMemoryList>();
 			recordIndex = allocatedMemoryList.AllocateBlock(size, initialValue);
 			if (recordIndex != null)
 			{
@@ -75,7 +80,7 @@ public sealed class FileMemoryAllocator
 	public void Remove(FileMemoryAddress fileMemoryAddress)
 	{
 		using var page = _pageManager.GetAllocatedPageBlock(fileMemoryAddress.PageIndex);
-		var allocatedMemoryList = new AllocatedMemoryList(page.ReadMutable());
+		ref var allocatedMemoryList = ref page.ReadMutable().AsRef<AllocatedMemoryList>();
 		allocatedMemoryList.RemoveBlock(fileMemoryAddress.BlockIndex);
 
 		if (page.PageIndex < _header.ReadOnlyRef.AllocatedBlocksFirstPage)
@@ -99,7 +104,7 @@ public sealed class FileMemoryAllocator
 				pageBlock = AllocateRecordsPage();
 			}
 
-			if (new AllocatedMemoryList(pageBlock.Read()).FreeSpace >= MinPageFreeSpaceForRecord)
+			if (pageBlock.Read().AsRef<AllocatedMemoryList>().FreeSpace >= MinPageFreeSpaceForRecord)
 			{
 				return pageBlock;
 			}
@@ -111,7 +116,7 @@ public sealed class FileMemoryAllocator
 	private PageBlockAccessor AllocateRecordsPage()
 	{
 		var pageBlock = _pageManager.AllocatePageBlock(1);
-		pageBlock.Write(SpanExtensions.AsReadOnlyBytes(in DefaultMemoryListHeader));
+		pageBlock.Write(SpanExtensions.AsReadOnlyBytes(in DefaultMemoryList));
 
 		return pageBlock;
 	}

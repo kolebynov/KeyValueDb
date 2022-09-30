@@ -8,9 +8,9 @@ public readonly struct AllocatedMemory : IDisposable
 	private readonly PageBlockAccessor _pageBlockAccessor;
 	private readonly ushort _blockIndex;
 
-	public Span<byte> DataMutable => new AllocatedMemoryList(_pageBlockAccessor.ReadMutable()).GetAllocatedBlockMutable(_blockIndex);
+	public Span<byte> DataMutable => _pageBlockAccessor.ReadMutable().AsRef<AllocatedMemoryList>().GetAllocatedBlockMutable(_blockIndex);
 
-	public ReadOnlySpan<byte> Data => new AllocatedMemoryList(_pageBlockAccessor.Read()).GetAllocatedBlock(_blockIndex);
+	public ReadOnlySpan<byte> Data => _pageBlockAccessor.Read().AsRef<AllocatedMemoryList>().GetAllocatedBlock(_blockIndex);
 
 	public FileMemoryAddress Address => new(_pageBlockAccessor.PageIndex, _blockIndex);
 

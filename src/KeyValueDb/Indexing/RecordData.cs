@@ -1,4 +1,5 @@
-﻿using KeyValueDb.Common;
+﻿using CommunityToolkit.HighPerformance;
+using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 
 namespace KeyValueDb.Indexing;

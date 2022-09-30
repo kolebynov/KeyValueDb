@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using CommunityToolkit.HighPerformance;
 using KeyValueDb.Common.Extensions;
 
 namespace KeyValueDb.FileMemory;
@@ -11,15 +12,27 @@ internal ref struct AllocatedMemoryList
 
 	private readonly Span<byte> _data;
 	private readonly int _payloadSize;
+	private readonly bool _isReadOnlyMode;
 
-	public readonly int FreeSpace => HeaderReadOnlyRef.LastFilledOffsetIndex == InvalidOffsetIndex
+	public readonly bool IsEmpty => HeaderRef.LastFilledOffsetIndex == InvalidOffsetIndex;
+
+	public readonly int FreeSpace => HeaderRef.LastFilledOffsetIndex == InvalidOffsetIndex
 		? _payloadSize
-		: (_payloadSize - BlockEndOffsetsReadOnly[HeaderReadOnlyRef.LastFilledOffsetIndex]);
+		: (_payloadSize - BlockEndOffsets[HeaderRef.LastFilledOffsetIndex]);
 
 	public AllocatedMemoryList(Span<byte> data)
 	{
 		_data = data;
 		_payloadSize = 0;
+		_isReadOnlyMode = false;
+		_payloadSize = HeaderRef.CalculatePayloadSize(data.Length);
+	}
+
+	public AllocatedMemoryList(ReadOnlySpan<byte> data)
+	{
+		_data = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(data), data.Length);
+		_payloadSize = 0;
+		_isReadOnlyMode = true;
 		_payloadSize = HeaderRef.CalculatePayloadSize(data.Length);
 	}
 
@@ -29,7 +42,7 @@ internal ref struct AllocatedMemoryList
 
 		var prevRecordEndOffset = GetPrevBlockEndOffset(blockIndex);
 
-		return ReadOnlyPayload[prevRecordEndOffset..BlockEndOffsetsReadOnly[blockIndex]];
+		return Payload[prevRecordEndOffset..BlockEndOffsets[blockIndex]];
 	}
 
 	public Span<byte> GetAllocatedBlockMutable(ushort blockIndex)
@@ -38,13 +51,13 @@ internal ref struct AllocatedMemoryList
 
 		var prevRecordEndOffset = GetPrevBlockEndOffset(blockIndex);
 
-		return Payload[prevRecordEndOffset..BlockEndOffsets[blockIndex]];
+		return PayloadMutable[prevRecordEndOffset..BlockEndOffsetsMutable[blockIndex]];
 	}
 
 	public ushort? AllocateBlock(int size, ReadOnlySpan<byte> initialValue = default)
 	{
-		var blockEndOffsets = BlockEndOffsets;
-		ref var header = ref HeaderRef;
+		var blockEndOffsets = BlockEndOffsetsMutable;
+		ref var header = ref HeaderMutableRef;
 
 		if (header.NextFreeOffsetIndex >= blockEndOffsets.Length || FreeSpace < size)
 		{
@@ -81,7 +94,7 @@ internal ref struct AllocatedMemoryList
 
 		if (!initialValue.IsEmpty)
 		{
-			initialValue.CopyTo(Payload.Slice(beginRecordOffset, size));
+			initialValue.CopyTo(PayloadMutable.Slice(beginRecordOffset, size));
 		}
 
 		return freeOffsetIndex;
@@ -91,8 +104,8 @@ internal ref struct AllocatedMemoryList
 	{
 		CheckBlockIndex(blockIndex);
 
-		ref var header = ref HeaderRef;
-		var offsets = BlockEndOffsets;
+		ref var header = ref HeaderMutableRef;
+		var offsets = BlockEndOffsetsMutable;
 		var recordLength = offsets[blockIndex] - GetPrevBlockEndOffset(blockIndex);
 
 		if (blockIndex != header.LastFilledOffsetIndex)
@@ -105,23 +118,29 @@ internal ref struct AllocatedMemoryList
 		header.LastFilledOffsetIndex = blockIndex == header.LastFilledOffsetIndex ? GetPrevBlockEndOffsetIndex(blockIndex) : header.LastFilledOffsetIndex;
 	}
 
-	private ref AllocatedMemoryListHeader HeaderRef => ref _data[..AllocatedMemoryListHeader.Size].AsRef<AllocatedMemoryListHeader>();
+	private readonly ReadOnlySpan<byte> Data => _data;
 
-	private readonly ref readonly AllocatedMemoryListHeader HeaderReadOnlyRef =>
-		ref _data[..AllocatedMemoryListHeader.Size].AsRef<AllocatedMemoryListHeader>();
+	private Span<byte> DataMutable =>
+		!_isReadOnlyMode ? _data : throw new InvalidOperationException("Mutable operations are not allowed in the read-only mode");
 
-	private Span<int> BlockEndOffsets => _data.Slice(AllocatedMemoryListHeader.Size, HeaderRef.MaxBlockCount * 4).Cast<byte, int>();
+	private ref AllocatedMemoryListHeader HeaderMutableRef => ref DataMutable[..AllocatedMemoryListHeader.Size].AsRef<AllocatedMemoryListHeader>();
 
-	private readonly ReadOnlySpan<int> BlockEndOffsetsReadOnly =>
-		_data.Slice(AllocatedMemoryListHeader.Size, HeaderReadOnlyRef.MaxBlockCount * 4).Cast<byte, int>();
+	private readonly ref readonly AllocatedMemoryListHeader HeaderRef =>
+		ref Data[..AllocatedMemoryListHeader.Size].AsRef<AllocatedMemoryListHeader>();
 
-	private Span<byte> Payload => _data[(AllocatedMemoryListHeader.Size + (HeaderRef.MaxBlockCount * 4))..];
+	private Span<int> BlockEndOffsetsMutable =>
+		DataMutable.Slice(AllocatedMemoryListHeader.Size, HeaderMutableRef.MaxBlockCount * 4).Cast<byte, int>();
 
-	private readonly ReadOnlySpan<byte> ReadOnlyPayload => _data[(AllocatedMemoryListHeader.Size + (HeaderReadOnlyRef.MaxBlockCount * 4))..];
+	private readonly ReadOnlySpan<int> BlockEndOffsets =>
+		Data.Slice(AllocatedMemoryListHeader.Size, HeaderRef.MaxBlockCount * 4).Cast<byte, int>();
+
+	private Span<byte> PayloadMutable => DataMutable[(AllocatedMemoryListHeader.Size + (HeaderMutableRef.MaxBlockCount * 4))..];
+
+	private readonly ReadOnlySpan<byte> Payload => Data[(AllocatedMemoryListHeader.Size + (HeaderRef.MaxBlockCount * 4))..];
 
 	private readonly void CheckBlockIndex(ushort blockIndex)
 	{
-		var blockEndOffsets = BlockEndOffsetsReadOnly;
+		var blockEndOffsets = BlockEndOffsets;
 		if (blockIndex >= blockEndOffsets.Length || blockEndOffsets[blockIndex] == InvalidBlockEndOffset)
 		{
 			throw new ArgumentException($"Invalid block index {blockIndex}", nameof(blockIndex));
@@ -130,12 +149,12 @@ internal ref struct AllocatedMemoryList
 
 	private void ShiftBlocks(ushort startBlock, int offset)
 	{
-		var recordEndOffsets = BlockEndOffsets;
+		var recordEndOffsets = BlockEndOffsetsMutable;
 
-		ref var header = ref HeaderRef;
+		ref var header = ref HeaderMutableRef;
 		var prevRecordEndOffset = GetPrevBlockEndOffset(startBlock);
-		var recordsData = Payload[prevRecordEndOffset..recordEndOffsets[header.LastFilledOffsetIndex]];
-		recordsData.CopyTo(Payload[(prevRecordEndOffset + offset)..]);
+		var recordsData = PayloadMutable[prevRecordEndOffset..recordEndOffsets[header.LastFilledOffsetIndex]];
+		recordsData.CopyTo(PayloadMutable[(prevRecordEndOffset + offset)..]);
 
 		for (var i = startBlock; i <= header.LastFilledOffsetIndex; i++)
 		{
@@ -148,7 +167,7 @@ internal ref struct AllocatedMemoryList
 
 	private readonly int GetPrevBlockEndOffset(ushort currentRecordIndex)
 	{
-		var blockEndOffsets = BlockEndOffsetsReadOnly;
+		var blockEndOffsets = BlockEndOffsets;
 		var prevRecordIndex = GetPrevBlockEndOffsetIndex(currentRecordIndex);
 
 		return prevRecordIndex != InvalidOffsetIndex
@@ -158,7 +177,7 @@ internal ref struct AllocatedMemoryList
 
 	private readonly ushort GetPrevBlockEndOffsetIndex(ushort currentRecordIndex)
 	{
-		var blockEndOffsets = BlockEndOffsetsReadOnly;
+		var blockEndOffsets = BlockEndOffsets;
 		var prevBlockIndex = InvalidOffsetIndex;
 
 		for (var i = currentRecordIndex - 1; i >= 0; i--)

@@ -1,8 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using KeyValueDb.Common.Extensions;
+using CommunityToolkit.HighPerformance;
 using KeyValueDb.FileMemory;
-using KeyValueDb.FileMemory.Paging;
 
 namespace KeyValueDb.Indexing;
 
@@ -11,33 +10,33 @@ public unsafe struct HashMapIndexHeader
 {
 	public const int Size = BucketsPageIndexesSize;
 
-	private const int BucketsPageIndexesSize = PageIndex.Size * HashMapIndex.MaxPagesPerBucket * HashMapIndex.BucketCount;
+	private const int BucketsPageIndexesSize = FileMemoryAddress.Size * HashMapIndex.MaxPagesPerBucket * HashMapIndex.BucketCount;
 
 	private fixed byte _bucketsPageIndexes[BucketsPageIndexesSize];
 
 	public static HashMapIndexHeader Initial { get; } = CreateInitial();
 
-	public readonly ReadOnlySpan<PageIndex> GetBucketPageIndexes(int bucket)
+	public readonly ReadOnlySpan<FileMemoryAddress<HashMapBucket>> GetBucketAddresses(int bucket)
 	{
-		var indexes = GetBucketAllPageIndexes(bucket);
-		var count = GetPageIndexCount(indexes);
+		var indexes = GetBucketAllAddresses(bucket);
+		var count = GetPageAddressCount(indexes);
 
-		return count > 0 ? indexes[..count] : ReadOnlySpan<PageIndex>.Empty;
+		return count > 0 ? indexes[..count] : ReadOnlySpan<FileMemoryAddress<HashMapBucket>>.Empty;
 	}
 
-	public void AddPageIndexToBucket(int bucket, PageIndex pageIndex)
+	public void AddBucketAddress(int bucket, FileMemoryAddress<HashMapBucket> bucketAddress)
 	{
-		var indexes = GetBucketAllPageIndexes(bucket);
-		indexes[GetPageIndexCount(indexes)] = pageIndex;
+		var indexes = GetBucketAllAddresses(bucket);
+		indexes[GetPageAddressCount(indexes)] = bucketAddress;
 	}
 
-	private readonly Span<PageIndex> BucketsPageIndexesMutable =>
-		MemoryMarshal.CreateSpan(ref Unsafe.AsRef(in _bucketsPageIndexes[0]), BucketsPageIndexesSize).Cast<byte, PageIndex>();
+	private readonly Span<FileMemoryAddress<HashMapBucket>> BucketsAddressesMutable =>
+		MemoryMarshal.CreateSpan(ref Unsafe.AsRef(in _bucketsPageIndexes[0]), BucketsPageIndexesSize).Cast<byte, FileMemoryAddress<HashMapBucket>>();
 
-	private readonly int GetPageIndexCount(ReadOnlySpan<PageIndex> bucketIndexes)
+	private readonly int GetPageAddressCount(ReadOnlySpan<FileMemoryAddress<HashMapBucket>> bucketAddresses)
 	{
 		var count = 0;
-		while (bucketIndexes[count] != PageIndex.Invalid)
+		while (bucketAddresses[count] != FileMemoryAddress<HashMapBucket>.Invalid)
 		{
 			count++;
 		}
@@ -45,13 +44,13 @@ public unsafe struct HashMapIndexHeader
 		return count;
 	}
 
-	private readonly Span<PageIndex> GetBucketAllPageIndexes(int bucket) =>
-		BucketsPageIndexesMutable.Slice(bucket * HashMapIndex.MaxPagesPerBucket, HashMapIndex.MaxPagesPerBucket);
+	private readonly Span<FileMemoryAddress<HashMapBucket>> GetBucketAllAddresses(int bucket) =>
+		BucketsAddressesMutable.Slice(bucket * HashMapIndex.MaxPagesPerBucket, HashMapIndex.MaxPagesPerBucket);
 
 	private static HashMapIndexHeader CreateInitial()
 	{
 		var header = default(HashMapIndexHeader);
-		header.BucketsPageIndexesMutable.Fill(PageIndex.Invalid);
+		header.BucketsAddressesMutable.Fill(FileMemoryAddress<HashMapBucket>.Invalid);
 
 		return header;
 	}

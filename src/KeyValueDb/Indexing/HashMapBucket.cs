@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using KeyValueDb.Common.Extensions;
+using CommunityToolkit.HighPerformance;
 using KeyValueDb.FileMemory;
 
 namespace KeyValueDb.Indexing;
@@ -12,7 +12,7 @@ public unsafe struct HashMapBucket
 
 	public static readonly HashMapBucket Initial = CreateInitial();
 
-	private const int Size = FileMemoryAllocator.MaxRecordSize;
+	private const int Size = FileMemoryAllocator.MaxRecordSizeForDefaultPageBlock;
 	private const int AddressesSize = Size - 4;
 
 	private int _count;
@@ -21,14 +21,14 @@ public unsafe struct HashMapBucket
 	public readonly ReadOnlySpan<FileMemoryAddress> RecordAddresses =>
 		_count > 0 ? AllRecordAddresses[.._count] : ReadOnlySpan<FileMemoryAddress>.Empty;
 
-	public void AddRecordAddress(FileMemoryAddress fileMemoryAddress)
+	public void AddRecordAddress(FileMemoryAddress recordAddress)
 	{
 		if (_count == MaxAddressesCount)
 		{
 			throw new InvalidOperationException("Bucket is full");
 		}
 
-		AllRecordAddressesMutable[_count++] = fileMemoryAddress;
+		AllRecordAddressesMutable[_count++] = recordAddress;
 	}
 
 	public void RemoveRecordAddress(int index)

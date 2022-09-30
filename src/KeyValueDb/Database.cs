@@ -50,6 +50,11 @@ public sealed class Database : IDisposable
 		_index.TryAdd(key, value);
 	}
 
+	public void Remove(string key)
+	{
+		_index.TryRemove(key);
+	}
+
 	public void Dispose()
 	{
 		_dbFileStream.Dispose();

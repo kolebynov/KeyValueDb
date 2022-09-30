@@ -47,6 +47,11 @@ internal sealed class PageManager
 	{
 		CheckPageIndex(pageIndex);
 
+		if (_cachedPages.TryGetValue(pageIndex, out var page))
+		{
+			return new PageBlockAccessor(page, this);
+		}
+
 		var pageRange = _allocatedPageRangeList.TryGetByPageIndex(pageIndex, out var p) ? p : new PageRange(pageIndex, 1);
 
 		return new PageBlockAccessor(GetPageBlockInternal(pageRange), this);

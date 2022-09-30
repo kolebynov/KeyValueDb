@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.FileMemory.Paging;
@@ -8,10 +7,11 @@ namespace KeyValueDb.FileMemory;
 
 public sealed class FileMemoryAllocator
 {
+	public const int MaxRecordSizeForDefaultPageBlock = 3846;
+
 	private const int MinPageFreeSpaceForRecord = 8;
 
 	private static readonly AllocatedMemoryListHeader DefaultMemoryListHeader = AllocatedMemoryListHeader.CreateInitial(61);
-	private static readonly int MaxRecordSizeForDefaultPageBlock = DefaultMemoryListHeader.CalculatePayloadSize(Constants.PageSize);
 
 	private readonly PageManager _pageManager;
 	private readonly FileMappedStructure<FileMemoryAllocatorHeader> _header;
@@ -83,6 +83,11 @@ public sealed class FileMemoryAllocator
 			using var headerRef = _header.GetMutableRef();
 			headerRef.Ref.AllocatedBlocksFirstPage = page.PageIndex;
 		}
+
+		if (allocatedMemoryList.IsEmpty)
+		{
+			_pageManager.FreePageBlock(page.PageIndex);
+		}
 	}
 
 	private PageBlockAccessor GetNextPageWithFreeSpace(PageIndex startPageIndex)
@@ -94,8 +99,7 @@ public sealed class FileMemoryAllocator
 				pageBlock = AllocateRecordsPage();
 			}
 
-			var pageBlockData = pageBlock.Read();
-			if (new AllocatedMemoryList(MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(pageBlockData), pageBlockData.Length)).FreeSpace >= MinPageFreeSpaceForRecord)
+			if (new AllocatedMemoryList(pageBlock.Read()).FreeSpace >= MinPageFreeSpaceForRecord)
 			{
 				return pageBlock;
 			}

@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using KeyValueDb.Common;
 using KeyValueDb.Common.Extensions;
 using KeyValueDb.FileMemory;
-using KeyValueDb.FileMemory.Paging;
 
 namespace KeyValueDb.Indexing;
 
@@ -37,18 +36,18 @@ public sealed class HashMapIndex
 			return false;
 		}
 
-		var bucketPages = _header.ReadOnlyRef.GetBucketPageIndexes(findResult.BucketIndex);
-		var resultBucketRecord = _fileMemoryAllocator.Get(new FileMemoryAddress(bucketPages[^1], 0));
-		ref var resultBucket = ref resultBucketRecord.ReadMutable().AsRef<HashMapBucket>();
+		var bucketPages = _header.ReadOnlyRef.GetBucketAddresses(findResult.BucketIndex);
+		var resultBucketRecord = _fileMemoryAllocator.Get(bucketPages[^1]);
+		ref var resultBucket = ref resultBucketRecord.ValueRefMutable;
 		if (resultBucket.RecordAddresses.Length == HashMapBucket.MaxAddressesCount)
 		{
-			resultBucketRecord.AssignNewDisposableToVariable(_fileMemoryAllocator.Get(new FileMemoryAddress(AddNewPageToBucket(findResult.BucketIndex), 0)));
-			resultBucket = ref resultBucketRecord.ReadMutable().AsRef<HashMapBucket>();
+			resultBucketRecord.AssignNewDisposableToVariable(AddNewPageToBucket(findResult.BucketIndex));
+			resultBucket = ref resultBucketRecord.ValueRefMutable;
 		}
 
 		var recordDataToSave = new RecordData(key, value);
-		using var newRecord = _fileMemoryAllocator.AllocateStruct(recordDataToSave.Size);
-		recordDataToSave.SerializeToSpan(newRecord.ReadMutable());
+		using var newRecord = _fileMemoryAllocator.Allocate(recordDataToSave.Size);
+		recordDataToSave.SerializeToSpan(newRecord.DataMutable);
 		resultBucket.AddRecordAddress(newRecord.Address);
 
 		resultBucketRecord.Dispose();
@@ -65,7 +64,7 @@ public sealed class HashMapIndex
 			return false;
 		}
 
-		hashMapRecord = new HashMapRecord(_fileMemoryAllocator.Get(findResult.FileMemoryAddress));
+		hashMapRecord = new HashMapRecord(_fileMemoryAllocator.Get(findResult.RecordAddress));
 		return true;
 	}
 
@@ -77,10 +76,10 @@ public sealed class HashMapIndex
 			return false;
 		}
 
-		using var bucketRecord = _fileMemoryAllocator.Get(new FileMemoryAddress(findResult.BucketPage, 0));
-		ref var bucket = ref bucketRecord.ReadMutable().AsRef<HashMapBucket>();
+		using var bucketRecord = _fileMemoryAllocator.Get(findResult.BucketAddress);
+		ref var bucket = ref bucketRecord.ValueRefMutable;
 		bucket.RemoveRecordAddress(findResult.IndexInBucket);
-		_fileMemoryAllocator.Remove(findResult.FileMemoryAddress);
+		_fileMemoryAllocator.Remove(findResult.RecordAddress);
 
 		return true;
 	}
@@ -88,34 +87,34 @@ public sealed class HashMapIndex
 	private FindResult Find(ReadOnlySpan<char> key)
 	{
 		var bucketIndex = (int)((uint)GetHashCode(key) % BucketCount);
-		var bucketPages = _header.ReadOnlyRef.GetBucketPageIndexes(bucketIndex);
+		var bucketAddresses = _header.ReadOnlyRef.GetBucketAddresses(bucketIndex);
 
-		foreach (var bucketPageIndex in bucketPages)
+		foreach (var bucketAddress in bucketAddresses)
 		{
-			using var bucketRecord = _fileMemoryAllocator.Get(new FileMemoryAddress(bucketPageIndex, 0));
-			ref readonly var bucket = ref bucketRecord.Read().AsRef<HashMapBucket>();
+			using var bucketRecord = _fileMemoryAllocator.Get(bucketAddress);
+			ref readonly var bucket = ref bucketRecord.ValueRef;
 			for (var i = 0; i < bucket.RecordAddresses.Length; i++)
 			{
 				var recordAddress = bucket.RecordAddresses[i];
 				using var record = _fileMemoryAllocator.Get(recordAddress);
-				var recordData = RecordData.DeserializeFromSpan(record.Read());
+				var recordData = RecordData.DeserializeFromSpan(record.Data);
 				if (key.Equals(recordData.Key, StringComparison.Ordinal))
 				{
-					return new FindResult(bucketIndex, recordAddress, i, bucketPageIndex);
+					return new FindResult(bucketIndex, recordAddress, i, bucketAddress);
 				}
 			}
 		}
 
-		return new FindResult(bucketIndex, FileMemoryAddress.Invalid, -1, PageIndex.Invalid);
+		return new FindResult(bucketIndex, FileMemoryAddress.Invalid, -1, FileMemoryAddress<HashMapBucket>.Invalid);
 	}
 
-	private PageIndex AddNewPageToBucket(int bucketIndex)
+	private AllocatedMemory<HashMapBucket> AddNewPageToBucket(int bucketIndex)
 	{
 		using var headerRef = _header.GetMutableRef();
-		var address = _fileMemoryAllocator.CreateAndSaveData(SpanExtensions.AsReadOnlyBytes(in HashMapBucket.Initial));
-		headerRef.Ref.AddPageIndexToBucket(bucketIndex, address.PageIndex);
+		var newBucket = _fileMemoryAllocator.AllocateStruct(HashMapBucket.Initial);
+		headerRef.Ref.AddBucketAddress(bucketIndex, newBucket.Address);
 
-		return address.PageIndex;
+		return newBucket;
 	}
 
 	private static int GetHashCode(ReadOnlySpan<char> key)
@@ -129,20 +128,20 @@ public sealed class HashMapIndex
 	{
 		public readonly int BucketIndex;
 
-		public readonly PageIndex BucketPage;
+		public readonly FileMemoryAddress<HashMapBucket> BucketAddress;
 
 		public readonly int IndexInBucket;
 
-		public readonly FileMemoryAddress FileMemoryAddress;
+		public readonly FileMemoryAddress RecordAddress;
 
-		public bool IsFound => FileMemoryAddress != FileMemoryAddress.Invalid;
+		public bool IsFound => RecordAddress != FileMemoryAddress.Invalid;
 
-		public FindResult(int bucketIndex, FileMemoryAddress fileMemoryAddress, int indexInBucket, PageIndex bucketPage)
+		public FindResult(int bucketIndex, FileMemoryAddress recordAddress, int indexInBucket, FileMemoryAddress<HashMapBucket> bucketAddress)
 		{
 			BucketIndex = bucketIndex;
-			FileMemoryAddress = fileMemoryAddress;
+			RecordAddress = recordAddress;
 			IndexInBucket = indexInBucket;
-			BucketPage = bucketPage;
+			BucketAddress = bucketAddress;
 		}
 	}
 }

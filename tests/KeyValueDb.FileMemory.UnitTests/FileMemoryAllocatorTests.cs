@@ -13,6 +13,6 @@ public class FileMemoryAllocatorTests
 		using var alloc2 = allocator.Allocate(200);
 		using var alloc3 = allocator.Allocate(2000);
 		using var alloc4 = allocator.AllocateStruct<long>(1234);
-		Console.WriteLine(alloc4.ValueRef);
+		Console.WriteLine(alloc4.ValueRefMutable);
 	}
 }
